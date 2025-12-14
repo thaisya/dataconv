@@ -1,20 +1,27 @@
-"""Main entry point for the Data Converter CLI.
+"""Main entry point for the dataconv CLI.
 
-This module serves as the entry point for the dataconv command-line tool.
+This module serves as the entry point for the dataconv interactive command-line tool.
 
 Usage:
-    $ python main.py "from input.json to output.yaml"
-    $ python main.py "from data.json[users.*] to output.toml where age > 25"
+    $ python main.py
+    
+    dataconv v2.0
+    Type 'help' for commands, 'exit' to quit.
+
+    dataconv> load input.json
+    dataconv> convert to output.yaml where age > 25
 """
 
+from src.cli import InteractiveCLI
 import sys
 
-from src.cli import app
-
-
 def main() -> None:
-    """Run the CLI application."""
-    app()
+    """Run the interactive CLI application."""
+    cli = InteractiveCLI()
+    try:
+        cli.run()
+    except KeyboardInterrupt:
+        sys.exit(130)
 
 
 if __name__ == "__main__":

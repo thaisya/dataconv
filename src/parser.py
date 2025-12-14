@@ -98,19 +98,46 @@ class QueryTransformer(Transformer):
         """Transform NULL token to None."""
         return None
 
+    def field(self, children: list[Any]) -> str:
+        """Transform field rule to field name string.
+        
+        Args:
+            children: List containing [NAME]
+            
+        Returns:
+            Field name as string
+        """
+        return str(children[0])
+
+    def value(self, children: list[Any]) -> Any:
+        """Transform value rule to actual value.
+        
+        Args:
+            children: List containing one of [ESCAPED_STRING, SIGNED_NUMBER, TRUE, FALSE, NULL]
+            
+        Returns:
+            The actual value (string, number, bool, or None)
+        """
+        return children[0]
+
     def OP(self, token: Token) -> str:
         """Transform OP token to operator string."""
         return str(token.value)
+
+    def array_wildcard(self, token: Token) -> str:
+        """Transform array_wildcard token to string."""
+        return "*"
 
     def condition(self, children: list[Any]) -> Condition:
         """Transform condition rule to Condition TypedDict.
 
         Args:
-            children: List containing [field, op, value]
+            children: List containing [field_name, op, value]
 
         Returns:
             Condition dictionary with field, op, and value
         """
+        # Children are: [field_name (str), op (str), value (primitive)]
         return {"field": children[0], "op": children[1], "value": children[2]}
 
     def condition_list(self, children: list[Condition]) -> list[Condition]:
@@ -139,7 +166,7 @@ class QueryTransformer(Transformer):
         Returns:
             Path expression string
         """
-        return children[0]
+        return str(children[0])
 
     def path_expression(self, children: list[Any]) -> str:
         """Transform path_expression to dot-separated string.
@@ -151,11 +178,6 @@ class QueryTransformer(Transformer):
             Dot-separated path string (e.g., "users.name" or "users.*")
         """
         parts = [str(c) for c in children if str(c) != "."]
-
-        # Handle array wildcard
-        if parts and parts[-1] == "*":
-            parts[-2] += "*"
-            parts.pop()
 
         return ".".join(parts)
 

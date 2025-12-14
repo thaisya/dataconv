@@ -15,8 +15,8 @@ Example:
     >>> query = parser.parse('from input.json to output.yaml')
 """
 
-__version__ = "2.0.0"
-__author__ = "Data Converter Team"
+__version__ = "0.1.0"
+__author__ = "thaisya"
 
 # Public API exports
 from src.io import (

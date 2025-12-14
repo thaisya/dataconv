@@ -411,18 +411,18 @@ def format_validation_report(result: ValidationResult) -> str:
     lines: list[str] = []
 
     if result.errors:
-        lines.append("❌ Validation Errors:")
+        lines.append("[X] Validation Errors:")
         for issue in result.errors:
             lines.append(f"  • [{issue.path}] {issue.message}")
 
     if result.warnings:
         if lines:
             lines.append("")
-        lines.append("⚠️  Validation Warnings:")
+        lines.append("[!] Validation Warnings:")
         for issue in result.warnings:
             lines.append(f"  • [{issue.path}] {issue.message}")
 
     if not result.errors and not result.warnings:
-        lines.append("✅ Validation passed - no issues found")
+        lines.append("[+] Validation passed - no issues found")
 
     return "\n".join(lines)

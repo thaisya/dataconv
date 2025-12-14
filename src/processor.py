@@ -19,8 +19,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from jsonpath_ng import parse  # type: ignore
-from jsonpath_ng.exceptions import JsonPathParserError  # type: ignore
+from jsonpath_ng import parse
+from jsonpath_ng.exceptions import JsonPathParserError
 
 from src.parser import Condition
 
@@ -70,6 +70,7 @@ def apply_path(data: dict[str, Any], path: str | None) -> Any:
 
     try:
         logger.debug(f"Applying JSONPath: {path}")
+        path = path.replace(".*", "[*]")
         jsonpath_expr = parse(f"$.{path}")
         matches = jsonpath_expr.find(data)
 
@@ -119,12 +120,9 @@ def evaluate_condition(value: Any, op: str, expected: Any) -> bool:
     """
     # Handle None comparisons
     if value is None or expected is None:
-        if op == "==":
-            return value == expected
-        elif op == "!=":
-            return value != expected
-        else:
-            return False
+        if op in ("==", "!="):
+            return (value == expected) if op == "==" else (value != expected)
+        return False
 
     # Type coercion for numeric comparisons
     try:
@@ -141,13 +139,13 @@ def evaluate_condition(value: Any, op: str, expected: Any) -> bool:
         elif op == "!=":
             return value_num != expected_num
         elif op == ">":
-            return value_num > expected_num  # type: ignore
+            return value_num > expected_num
         elif op == "<":
-            return value_num < expected_num  # type: ignore
+            return value_num < expected_num
         elif op == ">=":
-            return value_num >= expected_num  # type: ignore
+            return value_num >= expected_num
         elif op == "<=":
-            return value_num <= expected_num  # type: ignore
+            return value_num <= expected_num
         else:
             raise ProcessorError(f"Unsupported operator: {op}")
 
@@ -189,29 +187,13 @@ def apply_conditions(
 
     logger.debug(f"Applying {len(conditions)} condition(s) to {len(data)} items")
 
-    filtered_results: list[dict[str, Any]] = []
-
-    for item in data:
-        if not isinstance(item, dict):
-            logger.warning(f"Skipping non-dict item: {type(item).__name__}")
-            continue
-
-        # Check all conditions (AND logic)
-        matches_all = True
-        for cond in conditions:
-            field = cond["field"]
-            op = cond["op"]
-            expected = cond["value"]
-
-            # Get field value from item
-            value = item.get(field)
-
-            if not evaluate_condition(value, op, expected):
-                matches_all = False
-                break
-
-        if matches_all:
-            filtered_results.append(item)
+    filtered_results = [
+        item for item in data
+        if isinstance(item, dict) and all(
+            evaluate_condition(item.get(cond["field"]), cond["op"], cond["value"])
+            for cond in conditions
+        )
+    ]
 
     logger.info(
         f"Filtered {len(data)} items to {len(filtered_results)} "
@@ -251,12 +233,8 @@ def process_data(
     # Step 1: Apply path extraction
     extracted = apply_path(data, path)
 
-    # Step 2: Apply conditions if any
+    # Step 2: Apply conditions if any (apply_conditions обработает любой тип данных)
     if conditions:
-        # Ensure data is a list for filtering
-        if not isinstance(extracted, list):
-            extracted = [extracted] if isinstance(extracted, dict) else []
-
         extracted = apply_conditions(extracted, conditions)
 
     return extracted

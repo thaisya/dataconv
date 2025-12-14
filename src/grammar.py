@@ -20,10 +20,7 @@ Examples:
 
 from typing import Final
 
-# Original QUERY_GRAMMAR preserved exactly as-is from old_main.py
-QUERY_GRAMMAR: Final[
-    str
-] = r"""
+QUERY_GRAMMAR: Final[str] = r"""
 %import common.SIGNED_NUMBER
 %import common.ESCAPED_STRING
 %import common.WS
@@ -32,14 +29,14 @@ QUERY_GRAMMAR: Final[
 
 query: "from" file_path "to" file_path ("where" condition_list)?
 
-file_path: FILE path_bracket?
+file_path: (FILE | ESCAPED_STRING) path_bracket?
 
-path_bracket: "[" path_expression "]"
+path_bracket: "[" path_expression "]" 
 
-path_expression: NAME ("." NAME)* array_wildcard?
+path_expression: NAME ("." NAME)* ("." array_wildcard)?
 array_wildcard: "*"
 
-condition_list: condition ("and" condition)* 
+condition_list: condition ("and" condition)*
 condition: field OP value
 field: NAME
 OP: "==" | "!=" | ">" | "<" | ">=" | "<="
@@ -50,7 +47,7 @@ value: ESCAPED_STRING
      | FALSE
      | NULL
 
-FILE: /[a-zA-Z0-9_\-\/\.]+/
+FILE: /[a-zA-Z0-9_\-\/\.]+/ 
 NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
 TRUE: "true"
 FALSE: "false"

@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataconverter"
-version = "2.0.0"
+version = "0.1.0"
 description = "Professional CLI tool for converting data between JSON, YAML, TOML, and XML formats"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -34,8 +34,8 @@ dependencies = [
     "jsonpath-ng>=1.6.1",    # JSONPath expressions
     "pyyaml>=6.0.1",         # YAML support
     "xmltodict>=0.13.0",     # XML to dict conversion
-    "typer>=0.12.0",         # CLI framework
     "rich>=13.7.0",          # Beautiful terminal output
+    "toml>=0.10.2",          # TOML support
 ]
 
 # Optional development dependencies
