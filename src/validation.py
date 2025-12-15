@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from src.io import FileFormat
 
@@ -107,7 +107,113 @@ class Validator(Protocol):
         ...
 
 
-class JSONValidator:
+class FloatCheckMixin:
+    """Mixin for validating float values are finite.
+    
+    Provides method to check for non-finite floats (NaN, Infinity).
+    Used by JSON, TOML, and YAML validators.
+    """
+
+    def check_finite_float(
+        self, value: Any, path: str, result: ValidationResult
+    ) -> bool:
+        """Check if value is a non-finite float and add error if so.
+
+        Args:
+            value: Value to check
+            path: Current path in data structure
+            result: ValidationResult to add error to
+
+        Returns:
+            True if value is a non-finite float, False otherwise
+        """
+        if isinstance(value, float) and not math.isfinite(value):
+            result.add_error(path, f"non-finite float {value}")
+            return True
+        return False
+
+
+class DictKeyCheckMixin:
+    """Mixin for validating dictionary keys are strings.
+    
+    Provides strict (error) and soft (warning) validation modes.
+    Used by all validators with different strictness levels.
+    """
+
+    def check_string_keys_strict(
+        self, value: dict, path: str, result: ValidationResult
+    ) -> None:
+        """Add ERROR for non-string keys (strict mode).
+
+        Args:
+            value: Dictionary to check
+            path: Current path in data structure
+            result: ValidationResult to add errors to
+        """
+        for key in value.keys():
+            if not isinstance(key, str):
+                result.add_error(path, f"non-string key {key}")
+
+    def check_string_keys_soft(
+        self, value: dict, path: str, result: ValidationResult
+    ) -> None:
+        """Add WARNING for non-string keys (soft mode).
+
+        Args:
+            value: Dictionary to check
+            path: Current path in data structure
+            result: ValidationResult to add warnings to
+        """
+        for key in value.keys():
+            if not isinstance(key, str):
+                result.add_warning(path, f"non-string key {key}")
+
+
+class RecursiveWalkMixin:
+    """Mixin providing recursive traversal of dict/list structures.
+    
+    Provides helper methods for walking nested data structures.
+    Used by all validators to eliminate iteration duplication.
+    """
+
+    def walk_dict(
+        self,
+        value: dict,
+        path: str,
+        result: ValidationResult,
+        walker: Callable[[Any, str, ValidationResult], None],
+    ) -> None:
+        """Recursively walk dictionary items.
+
+        Args:
+            value: Dictionary to walk
+            path: Current path in data structure
+            result: ValidationResult to accumulate issues
+            walker: Callback function to process each value
+        """
+        for key, subvalue in value.items():
+            walker(subvalue, f"{path}.{key}", result)
+
+    def walk_list(
+        self,
+        value: list,
+        path: str,
+        result: ValidationResult,
+        walker: Callable[[Any, str, ValidationResult], None],
+    ) -> None:
+        """Recursively walk list items.
+
+        Args:
+            value: List to walk
+            path: Current path in data structure
+            result: ValidationResult to accumulate issues
+            walker: Callback function to process each value
+        """
+        for i, subvalue in enumerate(value):
+            walker(subvalue, f"{path}[{i}]", result)
+
+
+class JSONValidator(FloatCheckMixin, DictKeyCheckMixin, RecursiveWalkMixin):
     """Validator for JSON format.
 
     JSON requirements:
@@ -141,30 +247,24 @@ class JSONValidator:
         if value is None or isinstance(value, (int, str, bool)):
             return
 
-        elif isinstance(value, float):
-            if not math.isfinite(value):
-                result.add_error(path, f"non-finite float {value}")
+        if self.check_finite_float(value, path, result):
             return
 
-        elif isinstance(value, dict):
-            for key, subvalue in value.items():
-                if not isinstance(key, str):
-                    result.add_error(path, f"non-string key {key}")
-                self._walk(subvalue, f"{path}.{key}", result)
+        if isinstance(value, dict):
+            self.check_string_keys_strict(value, path, result)
+            self.walk_dict(value, path, result, self._walk)
             return
 
-        elif isinstance(value, list):
-            for i, subvalue in enumerate(value):
-                self._walk(subvalue, f"{path}[{i}]", result)
+        if isinstance(value, list):
+            self.walk_list(value, path, result, self._walk)
             return
 
-        else:
-            result.add_error(
-                path, f"{value} (type {type(value).__name__}) is not a valid JSON value"
-            )
+        result.add_error(
+            path, f"{value} (type {type(value).__name__}) is not a valid JSON value"
+        )
 
 
-class TOMLValidator:
+class TOMLValidator(FloatCheckMixin, DictKeyCheckMixin, RecursiveWalkMixin):
     """Validator for TOML format.
 
     TOML requirements:
@@ -199,38 +299,31 @@ class TOMLValidator:
         if value is None or isinstance(value, (int, str, bool, datetime, date, time)):
             return
 
-        elif isinstance(value, float):
-            if not math.isfinite(value):
-                result.add_error(path, f"non-finite float {value}")
+        if self.check_finite_float(value, path, result):
             return
 
-        elif isinstance(value, dict):
-            for key, subvalue in value.items():
-                if not isinstance(key, str):
-                    result.add_error(path, f"non-string key {key}")
-                self._walk(subvalue, f"{path}.{key}", result)
+        if isinstance(value, dict):
+            self.check_string_keys_strict(value, path, result)
+            self.walk_dict(value, path, result, self._walk)
             return
 
-        elif isinstance(value, list):
-            # TOML requires homogeneous arrays
-            if value:
+        if isinstance(value, list):
+            if value and len(value) > 1:
                 first_type = type(value[0])
                 if not all(isinstance(elem, first_type) for elem in value):
                     result.add_warning(
                         path,
                         "all elements in list must be of the same type (TOML requirement)",
                     )
-            for i, subvalue in enumerate(value):
-                self._walk(subvalue, f"{path}[{i}]", result)
+            self.walk_list(value, path, result, self._walk)
             return
 
-        else:
-            result.add_error(
-                path, f"{value} (type {type(value).__name__}) is not a valid TOML value"
-            )
+        result.add_error(
+            path, f"{value} (type {type(value).__name__}) is not a valid TOML value"
+        )
 
 
-class YAMLValidator:
+class YAMLValidator(FloatCheckMixin, DictKeyCheckMixin, RecursiveWalkMixin):
     """Validator for YAML format.
 
     YAML requirements:
@@ -266,33 +359,25 @@ class YAMLValidator:
         ):
             return
 
-        elif isinstance(value, float):
-            if not math.isfinite(value):
-                result.add_error(path, f"non-finite float {value}")
+        if self.check_finite_float(value, path, result):
             return
 
-        elif isinstance(value, dict):
-            for key, subvalue in value.items():
-                if not isinstance(key, str):
-                    result.add_warning(
-                        path, f"non-string key {key}. Not recommended for YAML"
-                    )
-                self._walk(subvalue, f"{path}.{key}", result)
+        if isinstance(value, dict):
+            self.check_string_keys_soft(value, path, result)
+            self.walk_dict(value, path, result, self._walk)
             return
 
-        elif isinstance(value, list):
-            for i, subvalue in enumerate(value):
-                self._walk(subvalue, f"{path}[{i}]", result)
+        if isinstance(value, list):
+            self.walk_list(value, path, result, self._walk)
             return
 
-        else:
-            result.add_error(
-                path,
-                f"{value!r} (type {type(value).__name__}) is not a valid YAML value",
-            )
+        result.add_error(
+            path,
+            f"{value!r} (type {type(value).__name__}) is not a valid YAML value",
+        )
 
 
-class XMLValidator:
+class XMLValidator(DictKeyCheckMixin, RecursiveWalkMixin):
     """Validator for XML format.
 
     XML requirements:
@@ -323,20 +408,14 @@ class XMLValidator:
             result: ValidationResult to accumulate issues
         """
         if isinstance(value, dict):
-            for key, subvalue in value.items():
-                if not isinstance(key, str):
-                    result.add_error(
-                        path, f"non-string key {key!r} (XML tag/attr must be str)"
-                    )
-                self._walk(subvalue, f"{path}.{key}", result)
+            self.check_string_keys_strict(value, path, result)
+            self.walk_dict(value, path, result, self._walk)
             return
 
-        elif isinstance(value, list):
-            for i, subvalue in enumerate(value):
-                self._walk(subvalue, f"{path}[{i}]", result)
+        if isinstance(value, list):
+            self.walk_list(value, path, result, self._walk)
             return
 
-        # Try to convert to string
         try:
             _ = str(value)
         except Exception as e:

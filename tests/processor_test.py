@@ -16,6 +16,7 @@ from src.processor import (
     evaluate_condition,
     process_data,
 )
+from src.parser import AndExpr, Comparison
 
 
 class TestApplyPath:
@@ -148,9 +149,9 @@ class TestApplyConditions:
     def test_single_condition(self):
         """Test filtering with one condition."""
         data = [{"name": "John", "age": 30}, {"name": "Jane", "age": 25}]
-        conditions = [{"field": "age", "op": ">", "value": 26}]
+        condition = Comparison("age", ">", 26)
 
-        result = apply_conditions(data, conditions)
+        result = apply_conditions(data, condition)
 
         assert len(result) == 1
         assert result[0]["name"] == "John"
@@ -162,20 +163,20 @@ class TestApplyConditions:
             {"name": "Jane", "age": 25, "active": True},
             {"name": "Bob", "age": 35, "active": False},
         ]
-        conditions = [
-            {"field": "age", "op": ">=", "value": 26},
-            {"field": "active", "op": "==", "value": True},
-        ]
+        condition = AndExpr([
+            Comparison("age", ">=", 26),
+            Comparison("active", "==", True),
+        ])
 
-        result = apply_conditions(data, conditions)
+        result = apply_conditions(data, condition)
 
         assert len(result) == 1
         assert result[0]["name"] == "John"
 
     def test_empty_conditions_list(self):
-        """Test no filtering when conditions are empty."""
+        """Test no filtering when conditions are None."""
         data = [{"name": "John"}, {"name": "Jane"}]
-        result = apply_conditions(data, [])
+        result = apply_conditions(data, None)
 
         assert len(result) == 2
         assert result == data
@@ -183,18 +184,18 @@ class TestApplyConditions:
     def test_all_filtered_out(self):
         """Test when no items match."""
         data = [{"age": 20}, {"age": 22}]
-        conditions = [{"field": "age", "op": ">", "value": 100}]
+        condition = Comparison("age", ">", 100)
 
-        result = apply_conditions(data, conditions)
+        result = apply_conditions(data, condition)
 
         assert result == []
 
     def test_non_list_input_dict(self):
         """Test handling single dict (wraps in list)."""
         data = {"name": "John", "age": 30}
-        conditions = [{"field": "age", "op": ">", "value": 25}]
+        condition = Comparison("age", ">", 25)
 
-        result = apply_conditions(data, conditions)  # type: ignore
+        result = apply_conditions(data, condition)  # type: ignore
 
         assert len(result) == 1
         assert result[0]["name"] == "John"
@@ -207,17 +208,17 @@ class TestProcessData:
         """Test processing with path, no conditions."""
         data = {"users": [{"name": "John", "age": 30}, {"name": "Jane", "age": 25}]}
 
-        result = process_data(data, "users.*", [])
+        result = process_data(data, "users.*", None)
 
         assert len(result) == 2
 
     def test_process_with_conditions_only(self):
         """Test processing with conditions, no path."""
         data = {"users": [{"name": "John", "age": 30}, {"name": "Jane", "age": 25}]}
-        conditions = [{"field": "age", "op": ">", "value": 26}]
+        condition = Comparison("age", ">", 26)
 
         # This will try to filter the dict directly, which wraps it
-        result = process_data(data, None, conditions)
+        result = process_data(data, None, condition)
 
         # The dict itself doesn't have 'age' field, so it won't match
         assert result == []
@@ -225,9 +226,9 @@ class TestProcessData:
     def test_process_combined(self):
         """Test path extraction followed by filtering."""
         data = {"users": [{"name": "John", "age": 30}, {"name": "Jane", "age": 25}]}
-        conditions = [{"field": "age", "op": ">", "value": 26}]
+        condition = Comparison("age", ">", 26)
 
-        result = process_data(data, "users.*", conditions)
+        result = process_data(data, "users.*", condition)
 
         assert len(result) == 1
         assert result[0]["name"] == "John"
@@ -236,7 +237,7 @@ class TestProcessData:
         """Test no processing returns original data."""
         data = {"test": "data"}
 
-        result = process_data(data, None, [])
+        result = process_data(data, None, None)
 
         assert result == data
 

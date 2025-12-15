@@ -183,7 +183,7 @@ class InteractiveCLI:
 
             # Apply conditions if specified
             if conditions:
-                console.print(f"[cyan]Applying {len(conditions)} filter(s)...[/cyan]")
+                console.print(f"[cyan]Applying filters...[/cyan]")
                 data = apply_conditions(data if isinstance(data, list) else [data], conditions)
 
             # Validate before saving

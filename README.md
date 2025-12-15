@@ -8,6 +8,7 @@ A professional CLI tool for converting data between JSON, YAML, TOML, and XML fo
 - 🎯 **Interactive CLI**: SQL-like query interface with live REPL
 - 🔍 **JSONPath Queries**: Extract specific data using path expressions
 - ⚡ **Conditional Filtering**: Filter data with WHERE clauses
+- 📁 **Smart Path Management**: Automatic file organization in `files/` directory with custom path support
 - ✅ **Format Validation**: Built-in validators for each format
 - 🛡️ **Type Safety**: Full mypy type checking support
 - 🧪 **Comprehensive Testing**: Complete test suite included
@@ -36,12 +37,14 @@ Launch the interactive CLI:
 python main.py
 ```
 
+> **Note**: By default, all file operations use the `files/` directory. Relative paths like `data.json` will automatically use `files/data.json`. You can still use absolute paths for custom locations. See [Path Normalization](docs/PATH_NORMALIZATION.md) for details.
+
 ### Basic Conversion
 
 ```
 DataConv> from data.json to output.yaml
-[+] Loaded from: data.json
-[+] Saved to: output.yaml
+[+] Loaded from: files/data.json
+[+] Saved to: files/output.yaml
 ```
 
 ### With JSONPath

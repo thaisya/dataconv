@@ -1,0 +1,35 @@
+[[users]]
+name = "John Hui"
+age = 30
+email = "john.doe@example.com"
+
+[[users]]
+name = "Mike Smith"
+age = 20
+email = "mike.smith@example.com"
+
+[[users]]
+name = "John Smith"
+age = 18
+email = "john.smith@example.com"
+
+[[users]]
+name = "Jane Paul"
+age = 41
+email = "jane.paul@example.com"
+
+[[users]]
+name = "Jane Doe"
+age = 67
+email = "jane.doe@example.com"
+
+[[cars]]
+brand = "Toyota"
+model = "Camry"
+year = 2022
+
+[[cars]]
+brand = "Honda"
+model = "Civic"
+year = 2021
+

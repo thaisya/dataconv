@@ -29,6 +29,36 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
+def normalize_path(path: Path) -> Path:
+    """Normalize file path to default to 'files' folder for relative paths.
+    
+    Args:
+        path: Input path (relative or absolute)
+    
+    Returns:
+        Normalized Path object. If path is relative, it will be prefixed with 'files/'.
+        Absolute paths are returned unchanged.
+    
+    Example:
+        >>> normalize_path(Path("data.json"))
+        Path('files/data.json')
+        >>> normalize_path(Path("C:/Users/data.json"))
+        Path('C:/Users/data.json')
+        >>> normalize_path(Path("files/data.json"))
+        Path('files/data.json')
+    """
+    # If path is absolute, return it as-is
+    if path.is_absolute():
+        return path
+    
+    # If path is relative and doesn't start with 'files', prefix it
+    if not str(path).startswith("files"):
+        return Path("files") / path
+    
+    # Path already starts with 'files' or is in correct format
+    return path
+
+
 class FileFormat(Enum):
     """Supported file formats for data conversion."""
 
@@ -112,6 +142,9 @@ def smart_load(path: Path) -> dict[str, Any]:
         >>> data = smart_load(Path("config.json"))
         >>> print(data['version'])
     """
+    # Normalize path to default to 'files' directory for relative paths
+    path = normalize_path(path)
+    
     logger.debug(f"Loading file: {path}")
 
     if not path.exists():
@@ -170,6 +203,9 @@ def smart_save(
         >>> smart_save(data, Path("output.json"), indent=2)
         >>> smart_save(data, Path("output.yaml"), atomic=True, allow_unicode=True)
     """
+    # Normalize path to default to 'files' directory for relative paths
+    path = normalize_path(path)
+    
     logger.debug(f"Saving file: {path} (atomic={atomic})")
 
     file_format = detect_format(path)

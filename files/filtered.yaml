@@ -1,0 +1,9 @@
+- age: 30
+  email: john.doe@example.com
+  name: John Doe
+- age: 41
+  email: jane.paul@example.com
+  name: Jane Paul
+- age: 67
+  email: jane.doe@example.com
+  name: Jane Doe

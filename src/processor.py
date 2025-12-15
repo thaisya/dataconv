@@ -22,7 +22,7 @@ from typing import Any
 from jsonpath_ng import parse
 from jsonpath_ng.exceptions import JsonPathParserError
 
-from src.parser import Condition
+from src.parser import AndExpr, BooleanExpr, Comparison, NotExpr, OrExpr, XorExpr
 
 logger = logging.getLogger(__name__)
 
@@ -156,27 +156,72 @@ def evaluate_condition(value: Any, op: str, expected: Any) -> bool:
         return False
 
 
-def apply_conditions(
-    data: list[dict[str, Any]], conditions: list[Condition]
-) -> list[dict[str, Any]]:
-    """Filter list of dictionaries based on conditions.
+def evaluate_boolean_expr(item: dict[str, Any], expr: BooleanExpr) -> bool:
+    """Recursively evaluate complex boolean expressions.
+    
+    Args:
+        item: Data item to check
+        expr: Boolean expression (Comparison, AndExpr, OrExpr, NotExpr, XorExpr)
+    
+    Returns:
+        True if expression evaluates to true for this item
+    
+    Examples:
+        >>> evaluate_boolean_expr({"age": 25}, Comparison("age", ">", 18))
+        True
+        
+        >>> evaluate_boolean_expr(
+        ...     {"age": 25, "status": "active"},
+        ...     AndExpr([Comparison("age", ">", 18), 
+        ...             Comparison("status", "==", "active")])
+        ... )
+        True
+    """
+    if isinstance(expr, Comparison):
+        # Base case: evaluate single comparison
+        value = item.get(expr.field)
+        return evaluate_condition(value, expr.op, expr.value)
+    
+    elif isinstance(expr, NotExpr):
+        # NOT: negate the result of inner expression
+        return not evaluate_boolean_expr(item, expr.expr)
+    
+    elif isinstance(expr, AndExpr):
+        # AND: all sub-expressions must be true
+        return all(evaluate_boolean_expr(item, e) for e in expr.exprs)
+    
+    elif isinstance(expr, OrExpr):
+        # OR: at least one sub-expression must be true
+        return any(evaluate_boolean_expr(item, e) for e in expr.exprs)
+    
+    elif isinstance(expr, XorExpr):
+        # XOR: exactly one sub-expression must be true
+        true_count = sum(1 for e in expr.exprs if evaluate_boolean_expr(item, e))
+        return true_count == 1
+    
+    else:
+        raise ProcessorError(f"Unknown expression type: {type(expr).__name__}")
 
-    All conditions must be satisfied (AND logic).
+
+def apply_conditions(
+    data: list[dict[str, Any]], expr: BooleanExpr | None
+) -> list[dict[str, Any]]:
+    """Filter list of dictionaries using boolean expressions.
 
     Args:
         data: List of dictionaries to filter
-        conditions: List of conditions (each has field, op, value)
+        expr: Boolean expression tree (None means no filtering)
 
     Returns:
-        Filtered list containing only items matching all conditions
+        Filtered list containing only items matching the expression
 
     Example:
         >>> data = [{'name': 'John', 'age': 30}, {'name': 'Jane', 'age': 25}]
-        >>> conditions = [{'field': 'age', 'op': '>=', 'value': 26}]
-        >>> apply_conditions(data, conditions)
+        >>> expr = Comparison('age', '>=', 26)
+        >>> apply_conditions(data, expr)
         [{'name': 'John', 'age': 30}]
     """
-    if not conditions:
+    if expr is None:
         logger.debug("No conditions specified, returning all data")
         return data
 
@@ -185,19 +230,16 @@ def apply_conditions(
         # Wrap single items in a list
         data = [data] if isinstance(data, dict) else []
 
-    logger.debug(f"Applying {len(conditions)} condition(s) to {len(data)} items")
+    logger.debug(f"Applying boolean expression to {len(data)} items")
 
     filtered_results = [
         item for item in data
-        if isinstance(item, dict) and all(
-            evaluate_condition(item.get(cond["field"]), cond["op"], cond["value"])
-            for cond in conditions
-        )
+        if isinstance(item, dict) and evaluate_boolean_expr(item, expr)
     ]
 
     logger.info(
         f"Filtered {len(data)} items to {len(filtered_results)} "
-        f"matching all {len(conditions)} condition(s)"
+        f"matching boolean expression"
     )
 
     return filtered_results
@@ -206,7 +248,7 @@ def apply_conditions(
 def process_data(
     data: dict[str, Any],
     path: str | None,
-    conditions: list[Condition],
+    conditions: BooleanExpr | None,
 ) -> Any:
     """Process data by applying path extraction and conditions.
 
@@ -215,25 +257,25 @@ def process_data(
     Args:
         data: Source data dictionary
         path: Optional JSONPath expression
-        conditions: Optional list of filter conditions
+        conditions: Optional boolean expression for filtering
 
     Returns:
         Processed data (extracted and filtered)
 
     Example:
         >>> data = {'users': [{'name': 'John', 'age': 30}, {'name': 'Jane', 'age': 25}]}
-        >>> conditions = [{'field': 'age', 'op': '>', 'value': 26}]
-        >>> result = process_data(data, "users.*", conditions)
+        >>> expr = Comparison('age', '>', 26)
+        >>> result = process_data(data, "users.*", expr)
         >>> # result = [{'name': 'John', 'age': 30}]
     """
     logger.debug(
-        f"Processing data with path='{path}' and {len(conditions)} condition(s)"
+        f"Processing data with path='{path}' and conditions={'present' if conditions else 'none'}"
     )
 
     # Step 1: Apply path extraction
     extracted = apply_path(data, path)
 
-    # Step 2: Apply conditions if any (apply_conditions обработает любой тип данных)
+    # Step 2: Apply conditions if any
     if conditions:
         extracted = apply_conditions(extracted, conditions)
 

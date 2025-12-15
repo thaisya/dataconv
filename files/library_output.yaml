@@ -1,0 +1,23 @@
+cars:
+- brand: Toyota
+  model: Camry
+  year: 2022
+- brand: Honda
+  model: Civic
+  year: 2021
+users:
+- age: 30
+  email: john.doe@example.com
+  name: John Hui
+- age: 20
+  email: mike.smith@example.com
+  name: Mike Smith
+- age: 18
+  email: john.smith@example.com
+  name: John Smith
+- age: 41
+  email: jane.paul@example.com
+  name: Jane Paul
+- age: 67
+  email: jane.doe@example.com
+  name: Jane Doe

@@ -12,7 +12,8 @@ Example:
 """
 
 import logging
-from typing import Any, TypedDict
+from dataclasses import dataclass
+from typing import Any, TypedDict, Union
 
 from lark import Lark, Token, Transformer
 
@@ -27,6 +28,58 @@ class ParseError(Exception):
     pass
 
 
+@dataclass
+class Comparison:
+    """Single comparison condition.
+    
+    Example: age > 18
+    """
+    field: str
+    op: str
+    value: Any
+
+
+@dataclass
+class NotExpr:
+    """NOT expression - negates inner expression.
+    
+    Example: !(status == "active")
+    """
+    expr: "BooleanExpr"
+
+
+@dataclass
+class AndExpr:
+    """AND expression - all sub-expressions must be true.
+    
+    Example: age > 18 AND status == "active"
+    """
+    exprs: list["BooleanExpr"]
+
+
+@dataclass
+class OrExpr:
+    """OR expression - at least one sub-expression must be true.
+    
+    Example: age < 18 OR role == "admin"
+    """
+    exprs: list["BooleanExpr"]
+
+
+@dataclass
+class XorExpr:
+    """XOR expression - exactly one sub-expression must be true.
+    
+    Example: premium == true XOR trial == true
+    """
+    exprs: list["BooleanExpr"]
+
+
+# Type alias for any boolean expression
+BooleanExpr = Union[Comparison, NotExpr, AndExpr, OrExpr, XorExpr]
+
+
+# Legacy compatibility - keep old Condition type
 class Condition(TypedDict):
     """Represents a single filter condition.
 
@@ -59,12 +112,12 @@ class QueryResult(TypedDict):
     Attributes:
         source: Source file path specification
         dest: Destination file path specification
-        conditions: List of filter conditions (empty if no where clause)
+        conditions: Boolean expression tree (can be Comparison, And, Or, Not, Xor)
     """
 
     source: PathSpec
     dest: PathSpec
-    conditions: list[Condition]
+    conditions: BooleanExpr | None
 
 
 class QueryTransformer(Transformer):
@@ -128,21 +181,68 @@ class QueryTransformer(Transformer):
         """Transform array_wildcard token to string."""
         return "*"
 
-    def condition(self, children: list[Any]) -> Condition:
-        """Transform condition rule to Condition TypedDict.
+    def comparison(self, children: list[Any]) -> Comparison:
+        """Transform comparison rule to Comparison object.
 
         Args:
             children: List containing [field_name, op, value]
 
         Returns:
-            Condition dictionary with field, op, and value
+            Comparison object with field, op, and value
         """
-        # Children are: [field_name (str), op (str), value (primitive)]
-        return {"field": children[0], "op": children[1], "value": children[2]}
-
-    def condition_list(self, children: list[Condition]) -> list[Condition]:
-        """Transform condition_list to list of Conditions."""
-        return children
+        return Comparison(field=children[0], op=children[1], value=children[2])
+    
+    def atom(self, children: list[Any]) -> BooleanExpr:
+        """Transform atom rule (parenthesized expression or comparison)."""
+        return children[0]
+    
+    def not_expr(self, children: list[Any]) -> BooleanExpr:
+        """Transform not_expr rule - just pass through.
+        
+        not_expr is either negation or atom, both handled by their own transformers.
+        """
+        return children[0]
+    
+    def negation(self, children: list[Any]) -> BooleanExpr:
+        """Transform negation rule ("!" not_expr).
+        
+        The "!" token is consumed, children contains the negated expression.
+        """
+        return NotExpr(expr=children[0])
+    
+    def and_expr(self, children: list[Any]) -> BooleanExpr:
+        """Transform and_expr rule.
+        
+        Single child: pass through
+        Multiple children: wrap in AndExpr
+        """
+        if len(children) == 1:
+            return children[0]
+        return AndExpr(exprs=children)
+    
+    def or_expr(self, children: list[Any]) -> BooleanExpr:
+        """Transform or_expr rule.
+        
+        Single child: pass through
+        Multiple children: wrap in OrExpr
+        """
+        if len(children) == 1:
+            return children[0]
+        return OrExpr(exprs=children)
+    
+    def xor_expr(self, children: list[Any]) -> BooleanExpr:
+        """Transform xor_expr rule.
+        
+        Single child: pass through
+        Multiple children: wrap in XorExpr
+        """
+        if len(children) == 1:
+            return children[0]
+        return XorExpr(exprs=children)
+    
+    def condition_list(self, children: list[Any]) -> BooleanExpr:
+        """Transform condition_list to boolean expression tree."""
+        return children[0]
 
     def file_path(self, children: list[Any]) -> PathSpec:
         """Transform file_path rule to PathSpec.
@@ -193,7 +293,7 @@ class QueryTransformer(Transformer):
         return {
             "source": children[0],
             "dest": children[1],
-            "conditions": children[2] if len(children) > 2 else [],
+            "conditions": children[2] if len(children) > 2 else None,
         }
 
 

@@ -36,8 +36,24 @@ path_bracket: "[" path_expression "]"
 path_expression: NAME ("." NAME)* ("." array_wildcard)?
 array_wildcard: "*"
 
-condition_list: condition ("and" condition)*
-condition: field OP value
+condition_list: xor_expr
+
+xor_expr: or_expr ("xor" or_expr)*
+
+or_expr: and_expr ("or" and_expr)*
+
+and_expr: not_expr ("and" not_expr)*
+
+not_expr: negation
+        | atom
+
+negation: "!" not_expr
+
+atom: "(" xor_expr ")"
+    | comparison
+
+comparison: field OP value
+
 field: NAME
 OP: "==" | "!=" | ">" | "<" | ">=" | "<="
 

@@ -1,0 +1,5 @@
+[root]
+name = "John Smith"
+age = 18
+email = "john.smith@example.com"
+
