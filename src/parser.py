@@ -6,7 +6,7 @@ using Lark parser. It transforms the parse tree into typed Python data structure
 Example:
     >>> from src.parser import QueryParser
     >>> parser = QueryParser()
-    >>> result = parser.parse('from input.json[users.*] to output.yaml where age > 25')
+    >>> result = parser.parse('from input.json[users[*]] to output.yaml where age > 25')
     >>> print(result['source']['file'])
     'input.json'
 """
@@ -161,25 +161,55 @@ class QueryTransformer(Transformer):
             Field name as string
         """
         return str(children[0])
-
+    
     def value(self, children: list[Any]) -> Any:
         """Transform value rule to actual value.
         
         Args:
-            children: List containing one of [ESCAPED_STRING, SIGNED_NUMBER, TRUE, FALSE, NULL]
+            children: List containing one of [ESCAPED_STRING, SIGNED_NUMBER, TRUE, FALSE, NULL, NAME]
             
         Returns:
-            The actual value (string, number, bool, or None)
+            The actual value (string, number, bool, None, or field name)
         """
         return children[0]
+
+    def field_value(self, children: list[Any]) -> tuple[Any, bool]:
+        """Transform field_value rule to actual value and negation flag.
+        
+        Args:
+            children: List containing [Token("!"), value] or [value]
+            
+        Returns:
+            Tuple of (actual value, is_negated flag)
+        """
+        if len(children) == 2:
+            # First element is the "!" token, second is the transformed value
+            return (children[1], True)
+        else:
+            # Just the transformed value, no negation
+            return (children[0], False)
 
     def OP(self, token: Token) -> str:
         """Transform OP token to operator string."""
         return str(token.value)
 
-    def array_wildcard(self, token: Token) -> str:
-        """Transform array_wildcard token to string."""
-        return "*"
+    def field_check(self, children: list[Any]) -> Comparison:
+        """Transform standalone field to truthiness comparison.
+        
+        Converts standalone field references to comparisons against True.
+        This allows:
+            - 'where status' → Comparison(status, ==, True)
+            - 'where !status' → NotExpr(Comparison(status, ==, True))
+        
+        Args:
+            children: List containing [field_name]
+            
+        Returns:
+            Comparison object checking field == True
+        """
+        field_name = children[0]
+        # Use tuple format (value, is_negated) for consistency
+        return Comparison(field=field_name, op="==", value=(True, False))
 
     def comparison(self, children: list[Any]) -> Comparison:
         """Transform comparison rule to Comparison object.
@@ -257,29 +287,60 @@ class QueryTransformer(Transformer):
         path = children[1] if len(children) > 1 else None
         return {"file": file, "path": path}
 
-    def path_bracket(self, children: list[Any]) -> str:
-        """Transform path_bracket to path expression string.
-
+    def path_segment(self, children: list[Any]) -> str:
+        """Extract non-bracket characters from path segment.
+        
         Args:
-            children: List containing the path expression
-
+            children: Token containing path segment text
+            
         Returns:
-            Path expression string
+            Path segment as string
         """
         return str(children[0])
-
-    def path_expression(self, children: list[Any]) -> str:
-        """Transform path_expression to dot-separated string.
+    
+    def quoted_string(self, children: list[Any]) -> str:
+        """Preserve quoted strings with their quotes for JSONPath.
+        
+        Args:
+            children: ESCAPED_STRING token
+            
+        Returns:
+            Quoted string (e.g., '"name"')
+        """
+        return f'"{children[0]}"'
+    
+    def nested_bracket(self, children: list[Any]) -> str:
+        """Wrap nested path content in brackets.
+        
+        Args:
+            children: List containing the path_content
+            
+        Returns:
+            Bracketed content (e.g., '[0]', '[*]')
+        """
+        return f"[{children[0]}]"
+    
+    def path_content(self, children: list[Any]) -> str:
+        """Concatenate all path segments, brackets, and strings.
+        
+        Args:
+            children: Mix of path_segment, nested_bracket, quoted_string
+            
+        Returns:
+            Concatenated JSONPath content
+        """
+        return "".join(str(child) for child in children)
+    
+    def path_bracket(self, children: list[Any]) -> str:
+        """Transform path_bracket to JSONPath expression.
 
         Args:
-            children: List of name components and optional wildcard
+            children: List containing the path_content
 
         Returns:
-            Dot-separated path string (e.g., "users.name" or "users.*")
+            JSONPath expression without outer brackets
         """
-        parts = [str(c) for c in children if str(c) != "."]
-
-        return ".".join(parts)
+        return str(children[0])
 
     def query(self, children: list[Any]) -> QueryResult:
         """Transform query rule to QueryResult.

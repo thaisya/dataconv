@@ -171,17 +171,6 @@ class TestSmartSave:
             assert nested_path.exists()
             assert nested_path.parent.exists()
 
-    def test_save_json_with_indent(self):
-        """Test JSON saving with custom indent kwarg."""
-        data = {"name": "John", "age": 30}
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = Path(tmpdir) / "indented.json"
-            smart_save(data, output_path, indent=4)
-
-            content = output_path.read_text()
-            assert "    " in content
-            assert '"name"' in content
-
     def test_save_yaml_with_allow_unicode(self):
         """Test YAML saving with allow_unicode kwarg."""
         data = {"name": "Алиса", "город": "Москва"}

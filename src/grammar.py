@@ -5,14 +5,15 @@ The query language allows specifying source and destination files with optional
 JSONPath expressions and conditional filters.
 
 Grammar Syntax:
-    from <source_file>[path.expression.*] to <dest_file> where field == value and ...
+    from <source_file>[jsonpath_expression] to <dest_file> where field == value and ...
 
 Examples:
     >>> # Basic conversion
     >>> "from input.json to output.yaml"
 
-    >>> # With path extraction
-    >>> "from data.json[users.*] to output.toml"
+    >>> # With JSONPath extraction
+    >>> "from data.json[users[*]] to output.toml"
+    >>> "from data.json[users[0].name] to output.yaml"
 
     >>> # With conditions
     >>> "from data.json to output.yaml where age > 25 and status == \"active\""
@@ -31,10 +32,15 @@ query: "from" file_path "to" file_path ("where" condition_list)?
 
 file_path: (FILE | ESCAPED_STRING) path_bracket?
 
-path_bracket: "[" path_expression "]" 
+path_bracket: "[" path_content "]"
 
-path_expression: NAME ("." NAME)* ("." array_wildcard)?
-array_wildcard: "*"
+path_content: (path_segment | nested_bracket | quoted_string)+
+
+nested_bracket: "[" path_content "]"
+
+quoted_string: ESCAPED_STRING
+
+path_segment: /[^\[\]"]+/
 
 condition_list: xor_expr
 
@@ -51,10 +57,14 @@ negation: "!" not_expr
 
 atom: "(" xor_expr ")"
     | comparison
+    | field_check
 
-comparison: field OP value
+comparison: field OP field_value
 
 field: NAME
+field_value: "!"? value
+field_check: field
+
 OP: "==" | "!=" | ">" | "<" | ">=" | "<="
 
 value: ESCAPED_STRING
@@ -62,6 +72,7 @@ value: ESCAPED_STRING
      | TRUE
      | FALSE
      | NULL
+     | NAME
 
 FILE: /[a-zA-Z0-9_\-\/\.]+/ 
 NAME: /[a-zA-Z_][a-zA-Z0-9_]*/

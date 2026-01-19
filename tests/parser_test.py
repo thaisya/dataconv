@@ -43,10 +43,10 @@ class TestQueryParser:
 
     def test_parse_with_source_path(self, parser):
         """Test query with JSONPath in source."""
-        result = parser.parse("from data.json[users.*] to output.yaml")
+        result = parser.parse("from data.json[$.users[*]] to output.yaml")
 
         assert result["source"]["file"] == "data.json"
-        assert result["source"]["path"] == "users.*"
+        assert result["source"]["path"] == "$.users[*]"
         assert result["dest"]["file"] == "output.yaml"
 
     def test_parse_with_single_condition(self, parser):
@@ -56,7 +56,7 @@ class TestQueryParser:
         assert isinstance(result["conditions"], Comparison)
         assert result["conditions"].field == "age"
         assert result["conditions"].op == ">"
-        assert result["conditions"].value == 25.0
+        assert result["conditions"].value == (25.0, False)  # Now returns tuple
 
     def test_parse_with_and_conditions(self, parser):
         """Test WHERE with multiple AND conditions."""
@@ -137,7 +137,7 @@ class TestQueryParser:
         """Test == operator."""
         result = parser.parse("from data.json to out.yaml where name == \"John\"")
         assert result["conditions"].op == "=="
-        assert result["conditions"].value == "John"
+        assert result["conditions"].value == ("John", False)  # Now returns tuple
 
     def test_parse_inequality_operator(self, parser):
         """Test != operator."""
@@ -160,27 +160,27 @@ class TestQueryParser:
     def test_parse_string_value(self, parser):
         """Test string value parsing."""
         result = parser.parse("from data.json to out.yaml where name == \"Alice\"")
-        assert result["conditions"].value == "Alice"
+        assert result["conditions"].value == ("Alice", False)  # Now returns tuple
 
     def test_parse_number_value(self, parser):
         """Test number value parsing."""
         result = parser.parse("from data.json to out.yaml where age == 30")
-        assert result["conditions"].value == 30.0
+        assert result["conditions"].value == (30.0, False)  # Now returns tuple
 
     def test_parse_boolean_true(self, parser):
         """Test boolean true value."""
         result = parser.parse("from data.json to out.yaml where active == true")
-        assert result["conditions"].value is True
+        assert result["conditions"].value == (True, False)  # Now returns tuple
 
     def test_parse_boolean_false(self, parser):
         """Test boolean false value."""
         result = parser.parse("from data.json to out.yaml where active == false")
-        assert result["conditions"].value is False
+        assert result["conditions"].value == (False, False)  # Now returns tuple
 
     def test_parse_null_value(self, parser):
         """Test null value."""
         result = parser.parse("from data.json to out.yaml where metadata == null")
-        assert result["conditions"].value is None
+        assert result["conditions"].value == (None, False)  # Now returns tuple
 
     def test_parse_nested_path(self, parser):
         """Test nested path expression."""
@@ -209,12 +209,12 @@ class TestQueryParser:
     def test_parse_complex_query_with_all_features(self, parser):
         """Test complex query with multiple operators."""
         result = parser.parse(
-            "from data.json[users.*] to filtered.yaml "
+            "from data.json[$.users[*]] to filtered.yaml "
             "where (age >= 18 and status == \"active\") or premium == true"
         )
 
         assert result["source"]["file"] == "data.json"
-        assert result["source"]["path"] == "users.*"
+        assert result["source"]["path"] == "$.users[*]"
         assert result["dest"]["file"] == "filtered.yaml"
         assert isinstance(result["conditions"], OrExpr)
 
@@ -262,10 +262,10 @@ class TestPathSpecTypedDict:
 
     def test_pathspec_with_path(self):
         """Test PathSpec with JSONPath."""
-        path_spec: PathSpec = {"file": "data.json", "path": "users.*"}
+        path_spec: PathSpec = {"file": "data.json", "path": "$.users[*]"}
 
         assert path_spec["file"] == "data.json"
-        assert path_spec["path"] == "users.*"
+        assert path_spec["path"] == "$.users[*]"
 
     def test_pathspec_without_path(self):
         """Test PathSpec without JSONPath."""

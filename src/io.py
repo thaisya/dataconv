@@ -1,7 +1,7 @@
 """File I/O operations with smart format detection and atomic writes.
 
 This module provides smart loading and saving of data files in multiple formats
-(JSON, TOML, YAML, XML) with automatic format detection and optional atomic writes.
+(JSON, TOML, YAML, XML, CSV) with automatic format detection and optional atomic writes.
 
 Example:
     >>> from pathlib import Path
@@ -14,7 +14,7 @@ Example:
     >>> smart_save(data, Path("output.yaml"), atomic=True)
 """
 
-import json
+import csv
 import logging
 import os
 import tempfile
@@ -22,11 +22,39 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+try:
+    import orjson
+    HAS_ORJSON = True
+except ImportError:
+    import json
+    HAS_ORJSON = False
+
+try:
+    import tomllib
+    HAS_TOMLLIB = True
+except ModuleNotFoundError:
+    HAS_TOMLLIB = False
+
 import toml
-import xmltodict
+
 import yaml
+try:
+    from yaml import CSafeLoader as YAMLLoader, CDumper as YAMLDumper
+    HAS_YAML_C = True
+except ImportError:
+    from yaml import SafeLoader as YAMLLoader, Dumper as YAMLDumper
+    HAS_YAML_C = False
+
+import xmltodict
 
 logger = logging.getLogger(__name__)
+
+if HAS_ORJSON:
+    logger.debug("Using orjson for JSON (3x faster)")
+if HAS_TOMLLIB:
+    logger.debug("Using tomllib for TOML reading (2x faster)")
+if HAS_YAML_C:
+    logger.debug("Using PyYAML C extensions (5x faster)")
 
 
 def normalize_path(path: Path) -> Path:
@@ -59,6 +87,222 @@ def normalize_path(path: Path) -> Path:
     return path
 
 
+def flatten_dict(
+    data: dict[str, Any], 
+    parent_key: str = "", 
+    sep: str = ".",
+    ignore_nested: bool = False,
+    preserve_dots: bool = False,
+    array_strategy: str = "json"
+) -> dict[str, Any]:
+    """Flatten nested dictionary using dot notation.
+    
+    Args:
+        data: Dictionary to flatten
+        parent_key: Parent key prefix (for recursion)
+        sep: Separator for nested keys (default: ".")
+        ignore_nested: If True, skip nested dicts and arrays entirely
+        preserve_dots: If True, escape dots in original keys with backslash
+        array_strategy: How to handle arrays:
+            - "json": JSON-encode arrays (default, reliable round-trip, type-safe)
+            - "explode": Keep arrays as-is for row explosion at higher level
+            - "skip": Skip arrays entirely (prevents data issues)
+    
+    Returns:
+        Flattened dictionary with dot-notation keys
+    
+    Example:
+        >>> flatten_dict({"user": {"name": "Alice", "age": 30}})
+        {"user.name": "Alice", "user.age": 30}
+        
+        >>> flatten_dict({"tags": ["a", "b"]}, array_strategy="json")
+        {"tags": '["a", "b"]'}
+        
+        >>> flatten_dict({"user.name": "Alice"}, preserve_dots=True)
+        {"user\\.name": "Alice"}
+    """
+    items: list[tuple[str, Any]] = []
+    
+    for key, value in data.items():
+        # Escape dots in original keys only if preserve_dots is True
+        if preserve_dots:
+            escaped_key = key.replace(".", "\\.")
+        else:
+            escaped_key = key
+        
+        new_key = f"{parent_key}{sep}{escaped_key}" if parent_key else escaped_key
+        
+        if isinstance(value, dict):
+            if ignore_nested:
+                # Skip nested dictionaries
+                continue
+            # Recursively flatten nested dict
+            items.extend(flatten_dict(value, new_key, sep, ignore_nested, preserve_dots, array_strategy).items())
+        elif isinstance(value, list):
+            if ignore_nested:
+                # Skip arrays
+                continue
+            
+            # Handle arrays based on strategy
+            if array_strategy == "json":
+                # JSON-encode for reliable round-trip (use orjson if available)
+                if HAS_ORJSON:
+                    items.append((new_key, orjson.dumps(value).decode('utf-8')))
+                else:
+                    import json
+                    items.append((new_key, json.dumps(value)))
+            elif array_strategy == "explode":
+                # Keep array as-is, will be exploded at higher level
+                items.append((new_key, value))
+            elif array_strategy == "skip":
+                # Skip arrays with warning
+                logger.warning(f"Skipping array field '{new_key}' (array_strategy='skip')")
+                continue
+            else:
+                raise ValueError(
+                    f"Invalid array_strategy: {array_strategy}. "
+                    "Must be one of: json, explode, skip"
+                )
+        else:
+            # Keep primitives as-is
+            items.append((new_key, value))
+    
+    return dict(items)
+
+
+def unflatten_dict(data: dict[str, Any], sep: str = ".", preserve_dots: bool = False, array_strategy: str = "json") -> dict[str, Any]:
+    """Unflatten dictionary with dot notation back to nested structure.
+    
+    Args:
+        data: Flattened dictionary with dot-notation keys
+        sep: Separator used in keys (default: ".")
+        preserve_dots: If True, handle escaped dots in keys
+        array_strategy: How arrays were encoded (must match flatten_dict):
+            - "json": Parse JSON-encoded strings back to arrays
+            - "explode": Not applicable for unflattening
+            - "skip": Not applicable for unflattening
+    
+    Returns:
+        Nested dictionary structure
+    
+    Example:
+        >>> unflatten_dict({"user.name": "Alice", "user.age": "30"})
+        {"user": {"name": "Alice", "age": "30"}}
+        
+        >>> unflatten_dict({"tags": '["a","b"]'}, array_strategy="json")
+        {"tags": ["a", "b"]}
+        
+        >>> unflatten_dict({"user\\.name": "Alice"}, preserve_dots=True)
+        {"user.name": "Alice"}
+    """
+    result: dict[str, Any] = {}
+    
+    for key, value in data.items():
+        # Split by separator, but handle escaped separators only if preserve_dots
+        if preserve_dots:
+            parts = key.replace(f"\\{sep}", "\x00").split(sep)
+            parts = [p.replace("\x00", sep) for p in parts]
+        else:
+            # Simple split - no escaping
+            parts = key.split(sep)
+        
+        # Parse arrays based on strategy
+        if array_strategy == "json" and isinstance(value, str):
+            try:
+                # Try to parse as JSON (use orjson if available)
+                if HAS_ORJSON:
+                    parsed = orjson.loads(value)
+                else:
+                    import json
+                    parsed = json.loads(value)
+                # Only use if it's actually an array
+                if isinstance(parsed, list):
+                    value = parsed
+            except Exception:
+                # Not JSON or not an array, keep as string
+                pass
+        
+        # Navigate/create nested structure
+        current = result
+        for i, part in enumerate(parts[:-1]):
+            if part not in current:
+                current[part] = {}
+            elif not isinstance(current[part], dict):
+                # Conflict: key exists but isn't a dict
+                # Override with dict to continue nesting
+                current[part] = {}
+            current = current[part]
+        
+        # Set the final value
+        current[parts[-1]] = value
+    
+    return result
+
+
+def explode_arrays(
+    data: list[dict[str, Any]], 
+    array_field: str | None = None
+) -> list[dict[str, Any]]:
+    """Explode array field into separate rows (database normalization).
+    
+    Converts each array element into a separate row, duplicating other fields.
+    Useful for SQL-style CSV exports where arrays need to be normalized.
+    
+    Args:
+        data: List of dictionaries
+        array_field: Field to explode. If None, auto-detects first array field.
+    
+    Returns:
+        Expanded list with one row per array element
+    
+    Example:
+        >>> data = [{"user": "Alice", "tags": ["a", "b"]}]
+        >>> explode_arrays(data, "tags")
+        [
+            {"user": "Alice", "tags": "a"},
+            {"user": "Alice", "tags": "b"}
+        ]
+    
+    Warning:
+        - Multiple array fields create Cartesian product (exponential growth)
+        - Changes data structure (not reversible)
+        - Best for single array field
+    """
+    if not data:
+        return data
+    
+    # Auto-detect array field if not specified
+    if array_field is None:
+        for record in data:
+            for key, value in record.items():
+                if isinstance(value, list) and value:
+                    array_field = key
+                    logger.info(f"Auto-detected array field for explosion: {array_field}")
+                    break
+            if array_field:
+                break
+    
+    if not array_field:
+        logger.warning("No array field found for explosion, returning data unchanged")
+        return data
+    
+    exploded = []
+    for record in data:
+        array_value = record.get(array_field)
+        
+        if not isinstance(array_value, list) or not array_value:
+            # Not an array or empty - keep row as-is
+            exploded.append(record)
+        else:
+            # Create one row per array element
+            for item in array_value:
+                new_record = record.copy()
+                new_record[array_field] = item  # Replace array with scalar
+                exploded.append(new_record)
+    
+    return exploded
+
+
 class FileFormat(Enum):
     """Supported file formats for data conversion."""
 
@@ -66,6 +310,7 @@ class FileFormat(Enum):
     TOML = "toml"
     YAML = "yaml"
     XML = "xml"
+    CSV = "csv"
 
 
 class DataConverterIOError(Exception):
@@ -155,13 +400,31 @@ def smart_load(path: Path) -> dict[str, Any]:
     try:
         with open(path, encoding="utf-8") as file:
             if file_format == FileFormat.JSON:
-                data = json.load(file)
+                if HAS_ORJSON:
+                    # orjson requires bytes
+                    content = file.read()
+                    data = orjson.loads(content)
+                else:
+                    data = json.load(file)
             elif file_format == FileFormat.TOML:
-                data = toml.load(file)
+                if HAS_TOMLLIB:
+                    # tomllib requires binary mode, re-open
+                    with open(path, "rb") as binary_file:
+                        data = tomllib.load(binary_file)
+                else:
+                    data = toml.load(file)
             elif file_format == FileFormat.YAML:
-                data = yaml.safe_load(file)
+                data = yaml.load(file, Loader=YAMLLoader)
             elif file_format == FileFormat.XML:
                 data = xmltodict.parse(file.read())
+            elif file_format == FileFormat.CSV:
+                # Load CSV as list of dicts
+                reader = csv.DictReader(file)
+                csv_data = list(reader)
+                
+                # Unflatten each row (convert dot notation to nested dicts)
+                # Default to json strategy for array parsing
+                data = [unflatten_dict(row, array_strategy="json") for row in csv_data]
             else:
                 raise UnsupportedFormatError(f"Unsupported format: {file_format}")
 
@@ -193,6 +456,15 @@ def smart_save(
         atomic: If True, use atomic write (temp file + rename). Default: True
         **kwargs: Additional keyword arguments passed to the serializer
                   (e.g., indent for JSON, allow_unicode for YAML)
+        
+    Additional CSV Options:
+        array_strategy: How to handle arrays (default: "json"):
+            - "json": JSON-encode arrays (reliable, preserves types)
+            - "explode": Separate rows per element (SQL-style normalization)
+            - "skip": Skip arrays entirely (safest)
+        array_field: For "explode" strategy, which field to explode (auto-detects if not specified)
+        ignore_nested: If True, skip nested dictionaries and arrays
+        preserve_dots: If True, escape dots in keys with backslash
 
     Raises:
         FileSaveError: If file cannot be saved
@@ -202,6 +474,13 @@ def smart_save(
         >>> data = {'name': 'John', 'age': 30}
         >>> smart_save(data, Path("output.json"), indent=2)
         >>> smart_save(data, Path("output.yaml"), atomic=True, allow_unicode=True)
+        
+        >>> # CSV with JSON-encoded arrays (default)
+        >>> data = [{"user": "Alice", "tags": ["python", "rust"]}]
+        >>> smart_save(data, Path("out.csv"))
+        
+        >>> # CSV with row explosion
+        >>> smart_save(data, Path("out.csv"), array_strategy="explode", array_field="tags")
     """
     # Normalize path to default to 'files' directory for relative paths
     path = normalize_path(path)
@@ -227,9 +506,15 @@ def smart_save(
     try:
         with open(target_path, "w", encoding="utf-8") as file:
             if file_format == FileFormat.JSON:
-                # Default to indent=2 for readable JSON
-                json_kwargs = {"indent": 2, **kwargs}
-                json.dump(data, file, **json_kwargs)
+                if HAS_ORJSON:
+                    # orjson.dumps returns bytes, need to decode
+                    # OPT_INDENT_2 for pretty printing
+                    output = orjson.dumps(data, option=orjson.OPT_INDENT_2)
+                    file.write(output.decode('utf-8'))
+                else:
+                    # Default to indent=2 for readable JSON
+                    json_kwargs = {"indent": 2, **kwargs}
+                    json.dump(data, file, **json_kwargs)
 
             elif file_format == FileFormat.TOML:
                 toml.dump(data, file)
@@ -237,12 +522,64 @@ def smart_save(
             elif file_format == FileFormat.YAML:
                 # Default to allow_unicode for better YAML
                 yaml_kwargs = {"allow_unicode": True, **kwargs}
-                yaml.safe_dump(data, file, **yaml_kwargs)
+                yaml.dump(data, file, Dumper=YAMLDumper, **yaml_kwargs)
 
             elif file_format == FileFormat.XML:
                 xml_kwargs = {"pretty": True, **kwargs}
                 xml_string = xmltodict.unparse(data, **xml_kwargs)
                 file.write(xml_string)
+
+            elif file_format == FileFormat.CSV:
+                # CSV requires list of dictionaries
+                if not isinstance(data, list):
+                    raise FileSaveError(
+                        "CSV format requires a list of dictionaries. "
+                        f"Got {type(data).__name__} instead."
+                    )
+                
+                if not data:
+                    logger.warning("Saving empty CSV file")
+                    # Create empty file - don't return, let file be created
+                else:
+                    # Extract CSV-specific options
+                    ignore_nested = kwargs.get("ignore_nested", False)
+                    preserve_dots = kwargs.get("preserve_dots", False)
+                    array_strategy = kwargs.get("array_strategy", "json")  # NEW!
+                    array_field = kwargs.get("array_field", None)  # For "explode" strategy
+                    
+                    # Handle "explode" strategy before flattening
+                    if array_strategy == "explode":
+                        data = explode_arrays(data, array_field)
+                    
+                    # Flatten with chosen strategy
+                    flattened_data = [
+                        flatten_dict(
+                            row, 
+                            ignore_nested=ignore_nested, 
+                            preserve_dots=preserve_dots,
+                            array_strategy=array_strategy  # NEW!
+                        ) 
+                        for row in data
+                    ]
+                    
+                    fieldnames: list[str] = []
+                    seen = set()
+                    for row in flattened_data:
+                        for key in row.keys():
+                            if key not in seen:
+                                fieldnames.append(key)
+                                seen.add(key)
+                    
+                    if not fieldnames:
+                        raise FileSaveError(
+                            "No fields to write to CSV. "
+                            "All data may be nested (try ignore_nested=False)."
+                        )
+                    
+                    # Write CSV with DictWriter
+                    writer = csv.DictWriter(file, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(flattened_data)
 
             else:
                 raise UnsupportedFormatError(f"Unsupported format: {file_format}")

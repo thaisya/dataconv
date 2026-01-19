@@ -5,7 +5,7 @@ Kept for reference after refactoring.
 
 Usage:
     $ python old_main.py "from input.json to output.yaml"
-    $ python old_main.py "from data.json[users.*] to output.toml where age > 25"
+    $ python old_main.py "from data.json[users[*]] to output.toml where age > 25"
 """
 
 import json

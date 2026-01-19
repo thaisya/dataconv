@@ -7,7 +7,7 @@ Example:
     >>> from src.processor import apply_path, apply_conditions
     >>>
     >>> data = {'users': [{'name': 'John', 'age': 30}, {'name': 'Jane', 'age': 25}]}
-    >>> result = apply_path(data, "users.*")
+    >>> result = apply_path(data, "users[*].name")
     >>> # result = [{'name': 'John', 'age': 30}, {'name': 'Jane', 'age': 25}]
     >>>
     >>> conditions = [{'field': 'age', 'op': '>', 'value': 26}]
@@ -49,7 +49,7 @@ def apply_path(data: dict[str, Any], path: str | None) -> Any:
 
     Args:
         data: Source data dictionary
-        path: JSONPath expression (e.g., "users.*", "config.database.host")
+        path: JSONPath expression (e.g., "users[*]", "users[0].name", "config.database.host")
               If None or empty, returns original data
 
     Returns:
@@ -70,8 +70,7 @@ def apply_path(data: dict[str, Any], path: str | None) -> Any:
 
     try:
         logger.debug(f"Applying JSONPath: {path}")
-        path = path.replace(".*", "[*]")
-        jsonpath_expr = parse(f"$.{path}")
+        jsonpath_expr = parse(path)
         matches = jsonpath_expr.find(data)
 
         if not matches:
@@ -178,24 +177,36 @@ def evaluate_boolean_expr(item: dict[str, Any], expr: BooleanExpr) -> bool:
         True
     """
     if isinstance(expr, Comparison):
-        # Base case: evaluate single comparison
         value = item.get(expr.field)
-        return evaluate_condition(value, expr.op, expr.value)
+        expected = expr.value
+        
+        if isinstance(expected, tuple):
+            expected_val, is_negated = expected
+            
+            if isinstance(expected_val, str):
+                # Check if field exists in item (not if value is not None)
+                if expected_val in item:
+                    # It's a field reference - get the actual value
+                    field_value = item[expected_val]
+                    expected = not field_value if is_negated else field_value
+                else:
+                    # Treat as literal string value
+                    expected = not expected_val if is_negated else expected_val
+            else:
+                expected = not expected_val if is_negated else expected_val
+        
+        return evaluate_condition(value, expr.op, expected)
     
     elif isinstance(expr, NotExpr):
-        # NOT: negate the result of inner expression
         return not evaluate_boolean_expr(item, expr.expr)
     
     elif isinstance(expr, AndExpr):
-        # AND: all sub-expressions must be true
         return all(evaluate_boolean_expr(item, e) for e in expr.exprs)
     
     elif isinstance(expr, OrExpr):
-        # OR: at least one sub-expression must be true
         return any(evaluate_boolean_expr(item, e) for e in expr.exprs)
     
     elif isinstance(expr, XorExpr):
-        # XOR: exactly one sub-expression must be true
         true_count = sum(1 for e in expr.exprs if evaluate_boolean_expr(item, e))
         return true_count == 1
     
@@ -265,7 +276,7 @@ def process_data(
     Example:
         >>> data = {'users': [{'name': 'John', 'age': 30}, {'name': 'Jane', 'age': 25}]}
         >>> expr = Comparison('age', '>', 26)
-        >>> result = process_data(data, "users.*", expr)
+        >>> result = process_data(data, "users[*]", expr)
         >>> # result = [{'name': 'John', 'age': 30}]
     """
     logger.debug(

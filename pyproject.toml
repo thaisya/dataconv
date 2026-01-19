@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataconverter"
-version = "0.2.0"
+version = "0.2.1"
 description = "Professional CLI tool for converting data between JSON, YAML, TOML, and XML formats"
 requires-python = ">=3.10"
 license = {text = "MIT"}

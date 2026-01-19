@@ -159,7 +159,7 @@ class InteractiveCLI:
         """Execute a data conversion query.
 
         Args:
-            query: Full query string (e.g., "from data.json[users.*] to out.yaml where age > 25")
+            query: Full query string (e.g., "from data.json[users[*]] to out.yaml where age > 25")
         """
         try:
             # Parse the query
@@ -492,7 +492,7 @@ class InteractiveCLI:
 
             ("from <file>[path] to <file>", "Convert between formats", "from data.json to output.yaml"),
 
-            ("  + [path]", "Extract data path", "from data.json[users.*] to out.yaml"),
+            ("  + [path]", "Extract data path", "from data.json[users[*]] to out.yaml"),
 
             ("  + where <cond>", "Filter data", "from data.json to out.yaml where age > 25"),
 
