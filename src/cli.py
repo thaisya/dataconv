@@ -509,9 +509,15 @@ class InteractiveCLI:
 
             ("  + where <cond>", "Filter data", "from data.json to out.yaml where age > 25"),
 
+            ("from <file> where <cond>", "View filtered data", "from data.json where age > 25"),
+
             ("", "", ""),
 
             ("[bold cyan]Helper Commands[/bold cyan]", "", ""),
+
+            ("options", "View current options", "options"),
+
+            ("set <option> <value>", "Change option value", "set indent 2"),
 
             ("clear", "Clear screen", "clear"),
 
