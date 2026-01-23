@@ -75,7 +75,6 @@ class TestQueryGrammar:
 
         invalid_queries = [
             "invalid query",
-            "from only",
             "to only",
             "where age > 25",
         ]
@@ -167,7 +166,6 @@ class TestJSONPathBracketParsing:
 
         invalid_queries = [
             "invalid query",
-            "from only",
             "to only",
             "where age > 25",  # Missing from/to
         ]

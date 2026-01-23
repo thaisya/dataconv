@@ -29,8 +29,9 @@ from rich.table import Table
 from src import __version__
 from src.io import DataConverterIOError, detect_format, smart_load, smart_save
 from src.parser import ParseError, QueryParser
-from src.processor import ProcessorError, apply_path, apply_conditions
+from src.processor import ProcessorError, apply_path, apply_conditions, process_data
 from src.validation import ValidationError, format_validation_report, validate
+from src.options import OptionsConfig
 
 # Initialize Rich console
 console = Console()
@@ -77,6 +78,7 @@ class InteractiveCLI:
         self.verbose = verbose
         self.running = True
         self.logger = logging.getLogger(__name__)
+        self.options = OptionsConfig()
 
         setup_logging(verbose)
 
@@ -142,6 +144,8 @@ class InteractiveCLI:
             "quit": self._cmd_exit,
             "bye": self._cmd_exit,
             "clear": self._cmd_clear,
+            "options": self._cmd_options,
+            "set": self._cmd_set,
         }
 
         if command in commands:
@@ -169,8 +173,10 @@ class InteractiveCLI:
             # Extract components
             source_file = Path(parsed_query["source"]["file"])
             source_path = parsed_query["source"]["path"]
-            dest_file = Path(parsed_query["dest"]["file"])
+            dest_spec = parsed_query["dest"]
+            dest_file = Path(dest_spec["file"]) if dest_spec else None
             conditions = parsed_query["conditions"]
+
 
             # Load source data
             console.print(f"[cyan]Loading: {source_file}[/cyan]")
@@ -186,43 +192,50 @@ class InteractiveCLI:
                 console.print(f"[cyan]Applying filters...[/cyan]")
                 data = apply_conditions(data if isinstance(data, list) else [data], conditions)
 
-            # Validate before saving
-            target_format = detect_format(dest_file)
-            validation_result = validate(data, target_format)
+            # Save to destination if specified
+            if dest_file:
 
-            if validation_result.warnings:
-                for warning in validation_result.warnings:
-                    console.print(f"[yellow][!] {warning.message}[/yellow]")
+                # Validate before saving
+                target_format = detect_format(dest_file)
+                validation_result = validate(data, target_format)
 
-            if validation_result.errors:
-                console.print("[red]Validation failed:[/red]")
-                for error in validation_result.errors:
-                    console.print(f"[red]  [X] {error.message}[/red]")
-                return
+                if validation_result.warnings:
+                    for warning in validation_result.warnings:
+                        console.print(f"[yellow][!] {warning.message}[/yellow]")
 
-            # Handle list data for TOML/XML (requires dict root)
-            if isinstance(data, list):
-                if target_format.value == "toml":
-                    console.print(
-                        "[yellow][!] Wrapping list in {'root': data} for TOML compatibility[/yellow]"
-                    )
-                    data = {"root": data}
-                elif target_format.value == "xml":
-                    console.print(
-                        "[yellow][!] Wrapping list in {'root': {'item': data}} for XML compatibility[/yellow]"
-                    )
-                    data = {"root": {"item": data}}
+                if validation_result.errors:
+                    console.print("[red]Validation failed:[/red]")
+                    for error in validation_result.errors:
+                        console.print(f"[red]  [X] {error.message}[/red]")
+                    return
 
-            # Save to destination
-            smart_save(data, dest_file, atomic=True)
+                # Handle list data for TOML/XML (requires dict root)
+                if isinstance(data, list):
+                    if target_format.value == "toml":
+                        console.print(
+                            "[yellow][!] Wrapping list in {'root': data} for TOML compatibility[/yellow]"
+                        )
+                        data = {"root": data}
+                    elif target_format.value == "xml":
+                        console.print(
+                            "[yellow][!] Wrapping list in {'root': {'item': data}} for XML compatibility[/yellow]"
+                        )
+                        data = {"root": {"item": data}}
+
+                # Save to destination using OptionsConfig
+                smart_save(data, dest_file, self.options)
 
             # Update state
             self.current_data = data
-            self.current_file = dest_file
+            self.current_file = dest_file if dest_file else None
 
             # Success message
             record_count = self._count_records(data)
-            console.print(f"[green][+] Processed {record_count} record(s) -> {dest_file}[/green]")
+            if dest_file:
+                console.print(f"[green][+] Processed {record_count} record(s) -> {dest_file}[/green]")
+            else:
+                console.print(f"[green][+] Loaded and filtered {record_count} record(s)[/green]")
+                self._cmd_show("10")
 
         except ParseError as e:
             console.print(f"[red][X] Parse error: {e}[/red]")
@@ -278,7 +291,7 @@ class InteractiveCLI:
         file_path = Path(args.strip())
 
         try:
-            smart_save(self.current_data, file_path, atomic=True)
+            smart_save(self.current_data, file_path, self.options)
             console.print(f"[green][+] Saved to:[/green] {file_path}")
         except DataConverterIOError as e:
             console.print(f"[red][X] Failed to save file: {e}[/red]")
@@ -515,6 +528,114 @@ class InteractiveCLI:
             help_table.add_row(cmd, desc, example)
 
         console.print(help_table)
+
+    def _cmd_options(self, args: str) -> None:
+        """Display current options configuration.
+
+        Args:
+            args: Unused
+        """
+        from dataclasses import asdict
+
+        table = Table(title="Current Options", show_header=True)
+        table.add_column("Option", style="cyan")
+        table.add_column("Value", style="green")
+        table.add_column("Type", style="dim")
+
+        for key, value in asdict(self.options).items():
+            table.add_row(key, str(value), type(value).__name__)
+
+        console.print(table)
+        console.print("[dim]Use 'set <option> <value>' to change an option[/dim]")
+
+    def _cmd_set(self, args: str) -> None:
+        """Set an option value at runtime.
+
+        Args:
+            args: "<option> <value>"
+        """
+        parts = args.split(maxsplit=1)
+        if len(parts) != 2:
+            console.print("[red]Usage: set <option> <value>[/red]")
+            console.print("[dim]Example: set atomic false[/dim]")
+            return
+
+        option, value_str = parts
+
+        # Get field metadata from OptionsConfig
+        from dataclasses import fields
+        
+        field_info = None
+        for f in fields(self.options):
+            if f.name == option:
+                field_info = f
+                break
+
+        if not field_info:
+            console.print(f"[red]Unknown option: {option}[/red]")
+            console.print("[dim]Use 'options' to see available options[/dim]")
+            return
+
+        try:
+            # Use actual field type annotation for validation
+            field_type_str = str(field_info.type)
+            
+            # Handle bool type
+            if field_info.type == bool or field_type_str == "<class 'bool'>":
+                if value_str.lower() in ('true', '1', 'yes', 'on', 'y'):
+                    value = True
+                elif value_str.lower() in ('false', '0', 'no', 'off', 'n'):
+                    value = False
+                else:
+                    raise ValueError(
+                        "Invalid boolean. Use: true/false, yes/no, 1/0, on/off"
+                    )
+            
+            # Handle int type
+            elif field_info.type == int or field_type_str == "<class 'int'>":
+                value = int(value_str)
+                if value < 0:
+                    raise ValueError("Value must be non-negative")
+            
+            # Handle float type
+            elif field_info.type == float or field_type_str == "<class 'float'>":
+                # NOTE: Float support not currently used in OptionsConfig,
+                # but included for potential future usage
+                value = float(value_str)
+            
+            # Handle Literal types (e.g., Literal["json", "explode", "skip"])
+            elif 'Literal' in field_type_str:
+                # Extract valid values from Literal annotation
+                import re
+                match = re.search(r"Literal\[(.*?)\]", field_type_str)
+                if match:
+                    # Parse the literal values
+                    literal_content = match.group(1)
+                    valid_values = [v.strip().strip('\'"') for v in literal_content.split(',')]
+                    
+                    if value_str not in valid_values:
+                        raise ValueError(
+                            f"Invalid value. Must be one of: {', '.join(valid_values)}"
+                        )
+                value = value_str
+            
+            # Handle str and Optional[str] types
+            elif 'str' in field_type_str:
+                # Allow "none" to set None for optional string fields
+                value = value_str if value_str.lower() != 'none' else None
+            
+            else:
+                # Fallback for any other types
+                value = value_str
+
+            # Merge and update options (creates new instance with one field changed)
+            self.options = self.options.merge(**{option: value})
+            console.print(f"[green]✓ Set {option} = {value}[/green]")
+
+        except ValueError as e:
+            console.print(f"[red]Invalid value: {e}[/red]")
+        except TypeError as e:
+            console.print(f"[red]Type error: {e}[/red]")
 
     def _cmd_exit(self, args: str) -> None:
         """Exit the REPL.

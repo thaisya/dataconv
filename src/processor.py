@@ -32,18 +32,6 @@ class ProcessorError(Exception):
 
     pass
 
-
-@dataclass
-class ProcessorConfig:
-    """Configuration for data processor.
-
-    Attributes:
-        strict_mode: If True, raise errors on type mismatches in comparisons
-    """
-
-    strict_mode: bool = False
-
-
 def apply_path(data: dict[str, Any], path: str | None) -> Any:
     """Extract data using JSONPath expression.
 

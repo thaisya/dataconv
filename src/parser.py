@@ -111,12 +111,12 @@ class QueryResult(TypedDict):
 
     Attributes:
         source: Source file path specification
-        dest: Destination file path specification
+        dest: Destination file path specification (None for view-only queries)
         conditions: Boolean expression tree (can be Comparison, And, Or, Not, Xor)
     """
 
     source: PathSpec
-    dest: PathSpec
+    dest: PathSpec | None
     conditions: BooleanExpr | None
 
 
@@ -346,16 +346,36 @@ class QueryTransformer(Transformer):
         """Transform query rule to QueryResult.
 
         Args:
-            children: List containing source path, dest path, and optional conditions
+            children: List containing source path, optional dest path, and optional conditions
+                     Possible structures:
+                     - [source] - Just source (view-only)
+                     - [source, dest] - Source and dest (no filter)
+                     - [source, conditions] - Source with filter (view-only)
+                     - [source, dest, conditions] - Full query
 
         Returns:
             QueryResult dictionary
         """
-        return {
-            "source": children[0],
-            "dest": children[1],
-            "conditions": children[2] if len(children) > 2 else None,
-        }
+        source = children[0]
+        
+        # Determine what we have based on children count and types
+        if len(children) == 1:
+            # Just source: "from data.json"
+            return {"source": source, "dest": None, "conditions": None}
+        elif len(children) == 2:
+            # Two items - could be:
+            # 1. source + dest: "from data.json to output.yaml"
+            # 2. source + conditions: "from data.json where age > 25"
+            # Check if second item is a PathSpec (has 'file' key) or BooleanExpr
+            if isinstance(children[1], dict) and 'file' in children[1]:
+                # It's a dest path
+                return {"source": source, "dest": children[1], "conditions": None}
+            else:
+                # It's conditions
+                return {"source": source, "dest": None, "conditions": children[1]}
+        else:
+            # Three items: source + dest + conditions
+            return {"source": source, "dest": children[1], "conditions": children[2]}
 
 
 class QueryParser:
@@ -403,3 +423,22 @@ class QueryParser:
         except Exception as e:
             logger.error(f"Failed to parse query '{query}': {e}")
             raise ParseError(f"Invalid query syntax: {e}") from e
+
+    def _parse_conditions(self, conditions: str) -> BooleanExpr:
+        """Parse standalone where clause without FROM...TO.
+        
+        Args:
+            conditions: Boolean expression (e.g., "age > 25 AND status == 'active'")
+        
+        Returns:
+            BooleanExpr object
+        
+        Example:
+            >>> parser = QueryParser()
+            >>> expr = parser._parse_conditions("age > 25")
+            >>> # Returns: Comparison('age', '>', 25)
+        """
+        dummy_query = f"from _ to output.json where {conditions}"
+
+        parsed = self.parse(dummy_query)
+        return parsed["conditions"]

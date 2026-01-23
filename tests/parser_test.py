@@ -197,7 +197,6 @@ class TestQueryParser:
         """Test ParseError on invalid query syntax."""
         invalid_queries = [
             "invalid query",
-            "from input.json",  # Missing "to"
             "to output.yaml",  # Missing "from"
             "from input.json to",  # Missing destination
         ]
@@ -255,6 +254,92 @@ class TestBooleanExpressions:
             "(premium == true and trial == false) xor (premium == false and trial == true)"
         )
         assert isinstance(result["conditions"], XorExpr)
+
+
+class TestParseConditions:
+    """Tests for _parse_conditions() method (Phase 2)."""
+
+    @pytest.fixture
+    def parser(self):
+        """Create a QueryParser instance."""
+        return QueryParser()
+
+    def test_parse_simple_comparison(self, parser):
+        """Test parsing simple comparison without full query."""
+        expr = parser._parse_conditions("age > 25")
+        
+        assert isinstance(expr, Comparison)
+        assert expr.field == "age"
+        assert expr.op == ">"
+        assert expr.value == (25.0, False)
+
+    def test_parse_and_expression(self, parser):
+        """Test parsing AND expression."""
+        expr = parser._parse_conditions('age >= 18 and status == "active"')
+        
+        assert isinstance(expr, AndExpr)
+        assert len(expr.exprs) == 2
+        assert expr.exprs[0].field == "age"
+        assert expr.exprs[1].field == "status"
+
+    def test_parse_or_expression(self, parser):
+        """Test parsing OR expression."""
+        expr = parser._parse_conditions("age < 18 or premium == true")
+        
+        assert isinstance(expr, OrExpr)
+        assert len(expr.exprs) == 2
+        assert expr.exprs[0].field == "age"
+        assert expr.exprs[1].field == "premium"
+
+    def test_parse_not_expression(self, parser):
+        """Test parsing NOT expression."""
+        expr = parser._parse_conditions('!(status == "inactive")')
+        
+        assert isinstance(expr, NotExpr)
+        assert isinstance(expr.expr, Comparison)
+        assert expr.expr.field == "status"
+
+    def test_parse_xor_expression(self, parser):
+        """Test parsing XOR expression."""
+        expr = parser._parse_conditions("premium == true xor trial == true")
+        
+        assert isinstance(expr, XorExpr)
+        assert len(expr.exprs) == 2
+
+    def test_parse_complex_nested(self, parser):
+        """Test parsing complex nested expression."""
+        expr = parser._parse_conditions(
+            '(age >= 18 and !(status == "inactive")) or trial == true'
+        )
+        
+        assert isinstance(expr, OrExpr)
+        # First part should be AND
+        assert isinstance(expr.exprs[0], AndExpr)
+        # Second part of AND should be NOT
+        assert isinstance(expr.exprs[0].exprs[1], NotExpr)
+
+    def test_parse_with_parentheses(self, parser):
+        """Test parsing with parentheses grouping."""
+        expr = parser._parse_conditions(
+            '(age > 18 and status == "active") or role == "admin"'
+        )
+        
+        assert isinstance(expr, OrExpr)
+        # First expression should be grouped AND
+        assert isinstance(expr.exprs[0], AndExpr)
+        # Second should be simple comparison
+        assert isinstance(expr.exprs[1], Comparison)
+
+    def test_parse_invalid_expression(self, parser):
+        """Test that invalid expressions raise ParseError."""
+        with pytest.raises(ParseError):
+            parser._parse_conditions("age > ")  # Invalid syntax
+        
+        with pytest.raises(ParseError):
+            parser._parse_conditions("== 25")  # Missing field
+        
+        with pytest.raises(ParseError):
+            parser._parse_conditions("age >< 25")  # Invalid operator
 
 
 class TestPathSpecTypedDict:

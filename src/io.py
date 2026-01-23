@@ -46,6 +46,7 @@ except ImportError:
     HAS_YAML_C = False
 
 import xmltodict
+from src.options import OptionsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -87,13 +88,70 @@ def normalize_path(path: Path) -> Path:
     return path
 
 
+def parse_source_with_path(source: str | Path) -> tuple[Path, str | None]:
+    """Parse file path that may contain JSONPath syntax, handling edge cases.
+    
+    Handles:
+    - archive[2024].json (literal filename with brackets)
+    - data.json[users[*]] (file + JSONPath)
+    - data.json[nested[0][items]] (nested brackets in JSONPath)
+    
+    Strategy:
+    1. Check if full string is a valid file (handles literal brackets in filename)
+    2. If not, find first '[' and split there
+    3. Check if the file part exists
+    4. Return (file_path, jsonpath_or_none)
+    
+    Args:
+        source: File path string, possibly with JSONPath in brackets
+    
+    Returns:
+        Tuple of (file_path, jsonpath_expression_or_none)
+    
+    Example:
+        >>> parse_source_with_path("archive[2024].json")
+        (Path("files/archive[2024].json"), None)  # If file exists
+        
+        >>> parse_source_with_path("data.json[$.users[*]]")
+        (Path("files/data.json"), "$.users[*]")
+    """
+    source_str = str(source)
+    
+    # First, try the full string as-is (handles filenames with brackets)
+    full_path = normalize_path(Path(source_str))
+    if full_path.exists():
+        logger.debug(f"File '{source_str}' exists with literal brackets in name")
+        return (full_path, None)
+    
+    # Not a literal file, check for JSONPath syntax
+    if '[' not in source_str:
+        # No brackets at all, just a regular file path
+        return (normalize_path(Path(source_str)), None)
+    
+    # Split on first '[' to separate file from JSONPath
+    first_bracket = source_str.index('[')
+    file_part = source_str[:first_bracket]
+    
+    # Remove trailing ']' from the path part
+    path_part = source_str[first_bracket+1:]
+    if path_part.endswith(']'):
+        path_part = path_part[:-1]
+    
+    file_path = normalize_path(Path(file_part))
+    
+    # Validate that the file part exists
+    if not file_path.exists():
+        logger.warning(f"File not found: {file_path}")
+    
+    return (file_path, path_part if path_part else None)
+
+
+
 def flatten_dict(
     data: dict[str, Any], 
     parent_key: str = "", 
     sep: str = ".",
-    ignore_nested: bool = False,
-    preserve_dots: bool = False,
-    array_strategy: str = "json"
+    options: OptionsConfig = None
 ) -> dict[str, Any]:
     """Flatten nested dictionary using dot notation.
     
@@ -101,12 +159,7 @@ def flatten_dict(
         data: Dictionary to flatten
         parent_key: Parent key prefix (for recursion)
         sep: Separator for nested keys (default: ".")
-        ignore_nested: If True, skip nested dicts and arrays entirely
-        preserve_dots: If True, escape dots in original keys with backslash
-        array_strategy: How to handle arrays:
-            - "json": JSON-encode arrays (default, reliable round-trip, type-safe)
-            - "explode": Keep arrays as-is for row explosion at higher level
-            - "skip": Skip arrays entirely (prevents data issues)
+        options: OptionsConfig instance (uses defaults if None)
     
     Returns:
         Flattened dictionary with dot-notation keys
@@ -115,17 +168,22 @@ def flatten_dict(
         >>> flatten_dict({"user": {"name": "Alice", "age": 30}})
         {"user.name": "Alice", "user.age": 30}
         
-        >>> flatten_dict({"tags": ["a", "b"]}, array_strategy="json")
+        >>> opts = OptionsConfig(array_strategy="json")
+        >>> flatten_dict({"tags": ["a", "b"]}, options=opts)
         {"tags": '["a", "b"]'}
         
-        >>> flatten_dict({"user.name": "Alice"}, preserve_dots=True)
+        >>> opts = OptionsConfig(preserve_dots=True)
+        >>> flatten_dict({"user.name": "Alice"}, options=opts)
         {"user\\.name": "Alice"}
     """
+    # Use default options if not provided
+    options = options or OptionsConfig()
+    
     items: list[tuple[str, Any]] = []
     
     for key, value in data.items():
         # Escape dots in original keys only if preserve_dots is True
-        if preserve_dots:
+        if options.preserve_dots:
             escaped_key = key.replace(".", "\\.")
         else:
             escaped_key = key
@@ -133,34 +191,34 @@ def flatten_dict(
         new_key = f"{parent_key}{sep}{escaped_key}" if parent_key else escaped_key
         
         if isinstance(value, dict):
-            if ignore_nested:
+            if options.ignore_nested:
                 # Skip nested dictionaries
                 continue
             # Recursively flatten nested dict
-            items.extend(flatten_dict(value, new_key, sep, ignore_nested, preserve_dots, array_strategy).items())
+            items.extend(flatten_dict(value, new_key, sep, options).items())
         elif isinstance(value, list):
-            if ignore_nested:
+            if options.ignore_nested:
                 # Skip arrays
                 continue
             
             # Handle arrays based on strategy
-            if array_strategy == "json":
+            if options.array_strategy == "json":
                 # JSON-encode for reliable round-trip (use orjson if available)
                 if HAS_ORJSON:
                     items.append((new_key, orjson.dumps(value).decode('utf-8')))
                 else:
                     import json
                     items.append((new_key, json.dumps(value)))
-            elif array_strategy == "explode":
+            elif options.array_strategy == "explode":
                 # Keep array as-is, will be exploded at higher level
                 items.append((new_key, value))
-            elif array_strategy == "skip":
+            elif options.array_strategy == "skip":
                 # Skip arrays with warning
                 logger.warning(f"Skipping array field '{new_key}' (array_strategy='skip')")
                 continue
             else:
                 raise ValueError(
-                    f"Invalid array_strategy: {array_strategy}. "
+                    f"Invalid array_strategy: {options.array_strategy}. "
                     "Must be one of: json, explode, skip"
                 )
         else:
@@ -170,17 +228,13 @@ def flatten_dict(
     return dict(items)
 
 
-def unflatten_dict(data: dict[str, Any], sep: str = ".", preserve_dots: bool = False, array_strategy: str = "json") -> dict[str, Any]:
+def unflatten_dict(data: dict[str, Any], sep: str = ".", options: OptionsConfig = None) -> dict[str, Any]:
     """Unflatten dictionary with dot notation back to nested structure.
     
     Args:
         data: Flattened dictionary with dot-notation keys
         sep: Separator used in keys (default: ".")
-        preserve_dots: If True, handle escaped dots in keys
-        array_strategy: How arrays were encoded (must match flatten_dict):
-            - "json": Parse JSON-encoded strings back to arrays
-            - "explode": Not applicable for unflattening
-            - "skip": Not applicable for unflattening
+        options: OptionsConfig instance (uses defaults if None)
     
     Returns:
         Nested dictionary structure
@@ -189,17 +243,22 @@ def unflatten_dict(data: dict[str, Any], sep: str = ".", preserve_dots: bool = F
         >>> unflatten_dict({"user.name": "Alice", "user.age": "30"})
         {"user": {"name": "Alice", "age": "30"}}
         
-        >>> unflatten_dict({"tags": '["a","b"]'}, array_strategy="json")
+        >>> opts = OptionsConfig(array_strategy="json")
+        >>> unflatten_dict({"tags": '["a","b"]'}, options=opts)
         {"tags": ["a", "b"]}
         
-        >>> unflatten_dict({"user\\.name": "Alice"}, preserve_dots=True)
+        >>> opts = OptionsConfig(preserve_dots=True)
+        >>> unflatten_dict({"user\\.name": "Alice"}, options=opts)
         {"user.name": "Alice"}
     """
+    # Use default options if not provided
+    options = options or OptionsConfig()
+    
     result: dict[str, Any] = {}
     
     for key, value in data.items():
         # Split by separator, but handle escaped separators only if preserve_dots
-        if preserve_dots:
+        if options.preserve_dots:
             parts = key.replace(f"\\{sep}", "\x00").split(sep)
             parts = [p.replace("\x00", sep) for p in parts]
         else:
@@ -207,7 +266,7 @@ def unflatten_dict(data: dict[str, Any], sep: str = ".", preserve_dots: bool = F
             parts = key.split(sep)
         
         # Parse arrays based on strategy
-        if array_strategy == "json" and isinstance(value, str):
+        if options.array_strategy == "json" and isinstance(value, str):
             try:
                 # Try to parse as JSON (use orjson if available)
                 if HAS_ORJSON:
@@ -441,8 +500,7 @@ def smart_load(path: Path) -> dict[str, Any]:
 def smart_save(
     data: dict[str, Any],
     path: Path,
-    atomic: bool = True,
-    **kwargs: Any,
+    options: OptionsConfig = None,
 ) -> None:
     """Save data to file with automatic format detection.
 
@@ -453,18 +511,7 @@ def smart_save(
     Args:
         data: Dictionary data to save
         path: Destination path
-        atomic: If True, use atomic write (temp file + rename). Default: True
-        **kwargs: Additional keyword arguments passed to the serializer
-                  (e.g., indent for JSON, allow_unicode for YAML)
-        
-    Additional CSV Options:
-        array_strategy: How to handle arrays (default: "json"):
-            - "json": JSON-encode arrays (reliable, preserves types)
-            - "explode": Separate rows per element (SQL-style normalization)
-            - "skip": Skip arrays entirely (safest)
-        array_field: For "explode" strategy, which field to explode (auto-detects if not specified)
-        ignore_nested: If True, skip nested dictionaries and arrays
-        preserve_dots: If True, escape dots in keys with backslash
+        options: OptionsConfig instance (uses defaults if None)
 
     Raises:
         FileSaveError: If file cannot be saved
@@ -472,20 +519,26 @@ def smart_save(
 
     Example:
         >>> data = {'name': 'John', 'age': 30}
-        >>> smart_save(data, Path("output.json"), indent=2)
-        >>> smart_save(data, Path("output.yaml"), atomic=True, allow_unicode=True)
+        >>> smart_save(data, Path("output.json"))
+        
+        >>> opts = OptionsConfig(atomic=False)
+        >>> smart_save(data, Path("output.yaml"), opts)
         
         >>> # CSV with JSON-encoded arrays (default)
         >>> data = [{"user": "Alice", "tags": ["python", "rust"]}]
         >>> smart_save(data, Path("out.csv"))
         
         >>> # CSV with row explosion
-        >>> smart_save(data, Path("out.csv"), array_strategy="explode", array_field="tags")
+        >>> opts = OptionsConfig(array_strategy="explode", array_field="tags")
+        >>> smart_save(data, Path("out.csv"), opts)
     """
+    # Use default options if not provided
+    options = options or OptionsConfig()
+    
     # Normalize path to default to 'files' directory for relative paths
     path = normalize_path(path)
     
-    logger.debug(f"Saving file: {path} (atomic={atomic})")
+    logger.debug(f"Saving file: {path} (atomic={options.atomic})")
 
     file_format = detect_format(path)
 
@@ -493,7 +546,7 @@ def smart_save(
     path.parent.mkdir(parents=True, exist_ok=True)
 
     # Determine target path (temp file for atomic writes)
-    if atomic:
+    if options.atomic:
         fd, temp_path_str = tempfile.mkstemp(
             dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
         )
@@ -512,21 +565,19 @@ def smart_save(
                     output = orjson.dumps(data, option=orjson.OPT_INDENT_2)
                     file.write(output.decode('utf-8'))
                 else:
-                    # Default to indent=2 for readable JSON
-                    json_kwargs = {"indent": 2, **kwargs}
-                    json.dump(data, file, **json_kwargs)
+                    # Use indent from options (or fall back to 2)
+                    json.dump(data, file, indent=options.indent)
 
             elif file_format == FileFormat.TOML:
                 toml.dump(data, file)
 
             elif file_format == FileFormat.YAML:
-                # Default to allow_unicode for better YAML
-                yaml_kwargs = {"allow_unicode": True, **kwargs}
-                yaml.dump(data, file, Dumper=YAMLDumper, **yaml_kwargs)
+                # Use allow_unicode from options
+                yaml.dump(data, file, Dumper=YAMLDumper, allow_unicode=options.allow_unicode)
 
             elif file_format == FileFormat.XML:
-                xml_kwargs = {"pretty": True, **kwargs}
-                xml_string = xmltodict.unparse(data, **xml_kwargs)
+                # Use pretty from options
+                xml_string = xmltodict.unparse(data, pretty=options.pretty)
                 file.write(xml_string)
 
             elif file_format == FileFormat.CSV:
@@ -541,24 +592,13 @@ def smart_save(
                     logger.warning("Saving empty CSV file")
                     # Create empty file - don't return, let file be created
                 else:
-                    # Extract CSV-specific options
-                    ignore_nested = kwargs.get("ignore_nested", False)
-                    preserve_dots = kwargs.get("preserve_dots", False)
-                    array_strategy = kwargs.get("array_strategy", "json")  # NEW!
-                    array_field = kwargs.get("array_field", None)  # For "explode" strategy
-                    
                     # Handle "explode" strategy before flattening
-                    if array_strategy == "explode":
-                        data = explode_arrays(data, array_field)
+                    if options.array_strategy == "explode":
+                        data = explode_arrays(data, options.array_field)
                     
-                    # Flatten with chosen strategy
+                    # Flatten with options
                     flattened_data = [
-                        flatten_dict(
-                            row, 
-                            ignore_nested=ignore_nested, 
-                            preserve_dots=preserve_dots,
-                            array_strategy=array_strategy  # NEW!
-                        ) 
+                        flatten_dict(row, options=options) 
                         for row in data
                     ]
                     
@@ -585,7 +625,7 @@ def smart_save(
                 raise UnsupportedFormatError(f"Unsupported format: {file_format}")
 
         # Atomic write: rename temp file to final destination
-        if atomic:
+        if options.atomic:
             temp_path.replace(path)
             logger.debug(f"Atomic write completed: {temp_path} -> {path}")
 
@@ -593,7 +633,7 @@ def smart_save(
 
     except Exception as e:
         # Clean up temp file on error
-        if atomic and temp_path.exists():
+        if options.atomic and temp_path.exists():
             temp_path.unlink()
             logger.debug(f"Cleaned up temp file: {temp_path}")
 

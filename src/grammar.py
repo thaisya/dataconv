@@ -28,7 +28,7 @@ QUERY_GRAMMAR: Final[str] = r"""
 
 ?start: query
 
-query: "from" file_path "to" file_path ("where" condition_list)?
+query: "from" file_path ("to" file_path)? ("where" condition_list)?
 
 file_path: (FILE | ESCAPED_STRING) path_bracket?
 

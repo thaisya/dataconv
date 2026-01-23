@@ -1,32 +1,32 @@
 {
-    "users": [
-        {
-            "name": "Alice",
-            "age": 25,
-            "status": "active",
-            "premium": true,
-            "trial": false
-        },
-        {
-            "name": "Bob",
-            "age": 17,
-            "status": "active",
-            "premium": false,
-            "trial": true
-        },
-        {
-            "name": "Charlie",
-            "age": 30,
-            "status": "inactive",
-            "premium": false,
-            "trial": false
-        },
-        {
-            "name": "Diana",
-            "age": 22,
-            "status": "active",
-            "premium": true,
-            "trial": true
-        }
-    ]
+  "users": [
+    {
+      "name": "Alice",
+      "age": 25,
+      "status": "active",
+      "premium": true,
+      "trial": false
+    },
+    {
+      "name": "Bob",
+      "age": 17,
+      "status": "active",
+      "premium": false,
+      "trial": true
+    },
+    {
+      "name": "Charlie",
+      "age": 30,
+      "status": "inactive",
+      "premium": false,
+      "trial": false
+    },
+    {
+      "name": "Diana",
+      "age": 22,
+      "status": "active",
+      "premium": true,
+      "trial": true
+    }
+  ]
 }

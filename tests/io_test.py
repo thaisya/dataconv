@@ -25,7 +25,9 @@ from src.io import (
     detect_format,
     smart_load,
     smart_save,
+    parse_source_with_path,
 )
+from src.options import OptionsConfig
 
 
 class TestDetectFormat:
@@ -106,7 +108,7 @@ class TestSmartSave:
         data = {"name": "John", "age": 30}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.json"
-            smart_save(data, output_path, atomic=True)
+            smart_save(data, output_path)  # Uses default OptionsConfig
 
             assert output_path.exists()
             loaded = json.loads(output_path.read_text())
@@ -117,7 +119,7 @@ class TestSmartSave:
         data = {"name": "Jane", "age": 25}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.yaml"
-            smart_save(data, output_path, atomic=True)
+            smart_save(data, output_path)  # Uses default OptionsConfig
 
             assert output_path.exists()
             loaded = yaml.safe_load(output_path.read_text())
@@ -128,7 +130,7 @@ class TestSmartSave:
         data = {"name": "Bob", "age": 35}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.toml"
-            smart_save(data, output_path, atomic=True)
+            smart_save(data, output_path)  # Uses default OptionsConfig
 
             assert output_path.exists()
             loaded = toml.loads(output_path.read_text())
@@ -139,7 +141,7 @@ class TestSmartSave:
         data = {"root": {"name": "Alice", "age": 28}}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.xml"
-            smart_save(data, output_path, atomic=True)
+            smart_save(data, output_path)  # Uses default OptionsConfig
 
             assert output_path.exists()
             loaded = xmltodict.parse(output_path.read_text())
@@ -151,14 +153,14 @@ class TestSmartSave:
         """Test difference between atomic and non-atomic writes."""
         data = {"test": "data"}
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Atomic write
+            # Atomic write (default)
             atomic_path = Path(tmpdir) / "atomic.json"
-            smart_save(data, atomic_path, atomic=True)
+            smart_save(data, atomic_path, OptionsConfig(atomic=True))
             assert atomic_path.exists()
 
             # Non-atomic write
             non_atomic_path = Path(tmpdir) / "non_atomic.json"
-            smart_save(data, non_atomic_path, atomic=False)
+            smart_save(data, non_atomic_path, OptionsConfig(atomic=False))
             assert non_atomic_path.exists()
 
     def test_save_creates_parent_dirs(self):
@@ -172,26 +174,81 @@ class TestSmartSave:
             assert nested_path.parent.exists()
 
     def test_save_yaml_with_allow_unicode(self):
-        """Test YAML saving with allow_unicode kwarg."""
+        """Test YAML saving with allow_unicode option."""
         data = {"name": "Алиса", "город": "Москва"}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "unicode.yaml"
-            smart_save(data, output_path, allow_unicode=True)
+            smart_save(data, output_path, OptionsConfig(allow_unicode=True))
 
             content = output_path.read_text(encoding="utf-8")
             assert "Алиса" in content
             assert "Москва" in content
 
     def test_save_xml_with_pretty(self):
-        """Test XML saving with pretty kwarg."""
+        """Test XML saving with pretty option."""
         data = {"root": {"item": {"name": "Test", "value": 123}}}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "pretty.xml"
-            smart_save(data, output_path, pretty=True)
+            smart_save(data, output_path, OptionsConfig(pretty=True))
 
             content = output_path.read_text()
             assert "<?xml" in content
             assert "<root>" in content
+
+
+
+
+class TestParseSourceWithPath:
+    """Tests for parse_source_with_path helper function."""
+
+    def test_regular_file_without_brackets(self):
+        """Test parsing regular file path without brackets."""
+        file_path, jsonpath = parse_source_with_path("files/data.json")
+        
+        assert file_path == Path("files/data.json")
+        assert jsonpath is None
+
+    def test_file_with_jsonpath(self):
+        """Test parsing file with JSONPath expression."""
+        file_path, jsonpath = parse_source_with_path("files/data.json[$.users[*]]")
+        
+        assert file_path == Path("files/data.json")
+        assert jsonpath == "$.users[*]"
+
+    def test_nested_brackets_in_jsonpath(self):
+        """Test parsing file with nested brackets in JSONPath."""
+        file_path, jsonpath = parse_source_with_path("files/data.json[nested[0][items]]")
+        
+        assert file_path == Path("files/data.json")
+        assert jsonpath == "nested[0][items]"
+
+    def test_complex_jsonpath(self):
+        """Test parsing file with complex JSONPath."""
+        file_path, jsonpath = parse_source_with_path("files/data.json[$.data[?(@.age > 18)]]")
+        
+        assert file_path == Path("files/data.json")
+        assert jsonpath == "$.data[?(@.age > 18)]"
+
+    def test_file_with_literal_brackets_in_name(self):
+        """Test that literal brackets in filename are preserved if file exists."""
+        # Create a temp file with brackets in the name
+        import tempfile
+        import os
+        
+        # Create in files directory for consistency
+        temp_path = Path("files") / "archive[2024].json"
+        temp_path.write_text('{"test": "data"}', encoding='utf-8')
+        
+        try:
+            # Test that the full path is recognized as a file
+            file_path, jsonpath = parse_source_with_path("files/archive[2024].json")
+            
+            assert file_path == temp_path
+            assert jsonpath is None
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
 
 
 if __name__ == "__main__":
