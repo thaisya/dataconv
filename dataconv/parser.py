@@ -4,7 +4,7 @@ This module provides parsing capabilities for the data conversion query syntax
 using Lark parser. It transforms the parse tree into typed Python data structures.
 
 Example:
-    >>> from src.parser import QueryParser
+    >>> from dataconv.parser import QueryParser
     >>> parser = QueryParser()
     >>> result = parser.parse('from input.json[users[*]] to output.yaml where age > 25')
     >>> print(result['source']['file'])
@@ -17,7 +17,7 @@ from typing import Any, TypedDict, Union
 
 from lark import Lark, Token, Transformer
 
-from src.grammar import QUERY_GRAMMAR
+from dataconv.grammar import QUERY_GRAMMAR
 
 logger = logging.getLogger(__name__)
 
@@ -366,12 +366,9 @@ class QueryTransformer(Transformer):
             # Two items - could be:
             # 1. source + dest: "from data.json to output.yaml"
             # 2. source + conditions: "from data.json where age > 25"
-            # Check if second item is a PathSpec (has 'file' key) or BooleanExpr
             if isinstance(children[1], dict) and 'file' in children[1]:
-                # It's a dest path
                 return {"source": source, "dest": children[1], "conditions": None}
             else:
-                # It's conditions
                 return {"source": source, "dest": None, "conditions": children[1]}
         else:
             # Three items: source + dest + conditions

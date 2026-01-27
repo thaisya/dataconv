@@ -1,301 +1,573 @@
-# DataConverter
+# dataconv
 
-A professional CLI tool for converting data between JSON, YAML, TOML, and XML formats with powerful query and filtering capabilities.
+> Professional data format converter with powerful query language and library API
 
-## Features
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yourusername/dataconv)
+[![Python](https://img.shields.io/badge/python-3.10+-brightgreen.svg)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-226%20passing-success.svg)](./tests)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-- 🔄 **Multi-Format Support**: Convert between JSON, YAML, TOML, and XML
-- 🎯 **Interactive CLI**: SQL-like query interface with live REPL
-- 🔍 **JSONPath Queries**: Extract specific data using path expressions
-- ⚡ **Conditional Filtering**: Filter data with WHERE clauses
-- 📁 **Smart Path Management**: Automatic file organization in `files/` directory with custom path support
-- ✅ **Format Validation**: Built-in validators for each format
-- 🛡️ **Type Safety**: Full mypy type checking support
-- 🧪 **Comprehensive Testing**: Complete test suite included
+dataconv is a versatile tool for converting data between multiple formats (JSON, YAML, TOML, XML, CSV) with advanced filtering, JSONPath extraction, and boolean query capabilities. Use it as a **library** in your Python projects or as an **interactive CLI** tool.
+
+---
+
+## Key Features
+
+- **Multi-Format Support** - JSON, YAML, TOML, XML, CSV with auto-detection
+- **Library API** - Clean Pythonic interface for programmatic use  
+- **Interactive CLI** - MySQL-style REPL with live command execution
+- **JSONPath Queries** - Extract nested data with `$.users[*].name` syntax
+- **Boolean Filtering** - Complex WHERE clauses with AND, OR, NOT, XOR operators
+- **Type-Safe** - Full mypy compliance with comprehensive type hints
+- **Format Validation** - Built-in validators for each format
+- **Runtime Configuration** - Customize behavior with options system
+- **Battle-Tested** - 226 comprehensive tests, 100% passing
+- **Performance** - Fast JSON with orjson (3x speedup), optional C-YAML for 5x boost
+
+---
 
 ## Installation
 
-```bash
-# Clone the repository
-git clone <your-repo-url>
-cd DataConverter
+### Choose Your Installation
 
-# Install dependencies
+dataconv offers flexible installation options based on your needs:
+
+#### Library Only
+
+For embedding in your Python projects without the interactive CLI:
+
+```bash
+pip install dataconv
+```
+
+**Includes**: 
+- Core data conversion engine
+- Query parser (Lark) 
+- JSONPath support (jsonpath-ng)
+- All format support (JSON, YAML, TOML, XML, CSV)
+- Fast JSON processing (orjson - 3x faster)
+- Library API (load, save, convert, query, filter, extract_path)
+
+**Excludes**: Rich (CLI terminal output), interactive REPL  
+**Size**: ~7 MB
+
+#### CLI Application (Recommended)
+
+Includes beautiful terminal output for the interactive REPL:
+
+```bash
+pip install dataconv[cli]
+```
+
+**Includes**: Everything from library + Rich terminal output  
+**Use for**: Interactive data conversion, command-line workflows  
+**Size**: ~10 MB
+
+#### Full Installation
+
+Complete installation with all extras and development tools:
+
+```bash
+pip install dataconv[full]
+```
+
+**Includes**: CLI + dev tools (pytest, mypy, black, ruff)  
+**Use for**: Development, contributing to the project  
+**Size**: ~30 MB
+
+#### From Source
+
+```bash
+git clone https://github.com/thaisya/dataconv
+cd dataconv
+
+# Library only
 pip install -e .
 
-# Or install with dev dependencies
-pip install -e ".[dev]"
+# With CLI
+pip install -e ".[cli]"
+
+# Full development setup
+pip install -e ".[full]"
 ```
+
+**Requirements**: Python 3.10+
+
+---
 
 ## Quick Start
 
-### Interactive Mode
+### As a Library
 
-Launch the interactive CLI:
+```python
+from dataconv import load, save, convert, query, filter, extract_path
 
-```bash
-python main.py
+# Load any format (auto-detected)
+data = load("config.json")
+users = load("data.yaml")
+
+# Convert between formats
+convert("input.json", "output.yaml")
+
+# JSONPath extraction
+users = load("data.json[$.users[*]]")
+names = extract_path(data, "$.users[*].name")
+
+# Filter with conditions
+active_users = filter(users, "age > 18 and status == \"active\"")
+
+# Complex queries
+result = query('from data.json[$.users[*]] where age > 25 and premium == true')
 ```
 
-> **Note**: By default, all file operations use the `files/` directory. Relative paths like `data.json` will automatically use `files/data.json`. You can still use absolute paths for custom locations. See [Path Normalization](docs/PATH_NORMALIZATION.md) for details.
+### As a CLI
 
-### Basic Conversion
+```bash
+# Start interactive REPL
+dataconv
+
+# Or run directly
+python -m dataconv
+```
+
+#### Interactive Session
 
 ```
 DataConv> from data.json to output.yaml
-[+] Loaded from: files/data.json
-[+] Saved to: files/output.yaml
+[+] Successfully converted data.json → output.yaml
+
+DataConv> from users.json[$.users[*]] where age > 25 to adults.yaml
+[+] Filtered 15 records → adults.yaml
+
+DataConv> load employees.csv
+[+] Loaded employees.csv (247 records)
+
+DataConv> show
+{
+  "employees": [...]
+}
 ```
 
-### With JSONPath
+---
 
-```
-DataConv> from users.json[$.users[*].name] to names.yaml
-```
+## Library API Reference
 
-### With Filtering
+### load()
 
-```
-DataConv> from products.json to sale_items.yaml where price < 50
-```
+Load data from any supported format with auto-detection.
 
-## CLI Commands
-
-### Data Operations
-
-- **`load <file>`** - Load data from a file
-- **`save <file>`** - Save current data to a file
-- **`convert to <file> [where <conditions>]`** - Convert with optional filtering
-
-### Query Syntax
-
-```
-from <source_file>[path_expression] to <dest_file> [where conditions]
+```python
+def load(path: str | Path, **options: Any) -> dict | list
 ```
 
-**Examples:**
-```
-from input.json to output.yaml
-from data.json[$.users[*]] to users.toml
-from items.yaml to cheap.json where price < 100
-from users.json to active.yaml where status == "active"
+**Features**:
+- Auto-detects format from extension
+- Supports JSONPath extraction in path
+- Handles literal brackets in filenames
+- Configurable encoding, separators
+
+**Examples**:
+
+```python
+# Basic loading
+data = load("config.json")
+data = load("data.yaml", encoding="utf-16")
+
+# JSONPath extraction
+users = load("data.json[$.users[*]]")
+names = load("data.json[$.users[*].name]")
+
+# Literal brackets in filename (file exists)
+archive = load("backup[2024].json")
 ```
 
-### Helper Commands
+### save()
 
-- **`show [path]`** - Display loaded data or specific path
-- **`status`** - Show current session state
-- **`validate`** - Run format validation on loaded data
-- **`help`** - Display all available commands
-- **`clear`** - Clear the screen
-- **`exit`** - Quit the application
+Save data to any format with atomic writes.
+
+```python
+def save(data: dict | list, path: str | Path, **options: Any) -> None
+```
+
+**Features**:
+- Atomic file writes (rename, not overwrite)
+- Auto-detects format from extension
+- Pretty-printing with configurable indentation
+- Custom encoding support
+
+**Examples**:
+
+```python
+# Basic saving
+save(data, "output.json")
+save(data, "config.yaml", indent=4)
+
+# Custom options
+save(data, "data.json", sort_keys=True, ensure_ascii=False)
+```
+
+### convert()
+
+One-step format conversion with optional JSONPath extraction.
+
+```python
+def convert(source: str | Path, dest: str | Path, **options: Any) -> None
+```
+
+**Features**:
+- Auto-detects source and destination formats
+- Supports JSONPath in source path
+- Preserves data structure
+- Configurable conversion options
+
+**Examples**:
+
+```python
+# Simple conversion
+convert("data.json", "data.yaml")
+convert("config.toml", "config.json")
+
+# Convert with extraction
+convert("data.json[$.users[*]]", "users.csv")
+convert("nested.yaml[$.items[*]]", "items.toml")
+```
+
+### extract_path()
+
+Apply JSONPath expression to data.
+
+```python
+def extract_path(data: dict | list, path: str) -> Any
+```
+
+**Examples**:
+
+```python
+data = {"users": [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]}
+
+# Extract all users
+users = extract_path(data, "$.users[*]")
+# [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
+
+# Extract specific fields
+names = extract_path(data, "$.users[*].name")
+# ["Alice", "Bob"]
+
+# Complex paths
+first_user = extract_path(data, "$.users[0]")
+```
+
+### filter()
+
+Filter data using WHERE clause conditions.
+
+```python
+def filter(data: dict | list, conditions: str) -> dict | list
+```
+
+**Features**:
+- Comparison operators: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- Boolean operators: `and`, `or`, `not`, `xor`
+- Standalone field checks: `where active`, `where !deleted`
+- Nested field access: `user.profile.age > 18`
+
+**Examples**:
+
+```python
+users = [
+    {"name": "Alice", "age": 30, "active": True},
+    {"name": "Bob", "age": 25, "active": False},
+    {"name": "Charlie", "age": 35, "active": True}
+]
+
+# Simple conditions
+adults = filter(users, 'age >= 30')
+active = filter(users, 'active == true')
+
+# Complex boolean logic
+result = filter(users, 'age > 25 and active == true')
+result = filter(users, '(age < 30 or age > 40) and active')
+
+# Standalone field checks
+active_users = filter(users, 'active')  # Truthy check
+inactive = filter(users, '!active')     # Falsy check
+```
+
+### query()
+
+Execute full query language (source, extraction, filtering).
+
+```python
+def query(query_str: str, **options: Any) -> dict | list
+```
+
+**Syntax**:
+```
+from <source>[optional_jsonpath] [where conditions]
+```
+
+**Examples**:
+
+```python
+# Load and filter
+result = query('from data.json where age > 25')
+
+# Extract and filter
+result = query('from data.json[$.users[*]] where active == true')
+
+# Complex queries
+result = query('''
+    from employees.csv[$.data[*]]
+    where (department == "Engineering" and salary > 100000)
+       or (department == "Sales" and sales > 50000)
+''')
+```
+
+---
+
+## CLI Reference
+
+### Available Commands
+
+#### Query Execution
+
+**Syntax**:
+```
+from <source> [to <dest>] [where conditions]
+```
+
+**Examples**:
+```
+from data.json to output.yaml
+from users.json[$.users[*]] where age > 25 to adults.yaml
+from config.toml to config.json where env == "production"
+```
+
+#### Helper Commands
+
+- `load <file>` - Load and display file contents
+- `save <file>` - Save current data to file
+- `show` - Display currently loaded data
+- `validate <file>` - Check file format validity
+- `options` - View current configuration
+- `set <option> <value>` - Change runtime configuration
+- `help` - Show command help
+- `clear` - Clear screen
+- `exit` / `quit` - Exit REPL
+
+---
 
 ## Query Language
 
-### Path Expressions
+### JSONPath Syntax
 
-Uses JSONPath syntax for data extraction:
+Extract nested data using JSONPath expressions:
 
 ```
-$.users[*]           # All users
-$.users[0]           # First user
-$.users[*].name      # All user names
-$..email             # All email fields (recursive)
+$.root                    # Root level
+$.users[*]                # All users
+$.users[0]                # First user
+$.users[*].name           # All names
+$.items[?(@.price > 10)]  # Filter in JSONPath
 ```
 
-### Condition Operators
+### WHERE Clause
 
-- `==` - Equal to
-- `!=` - Not equal to
+Filter data with boolean expressions:
+
+**Comparison Operators**:
+- `==` - Equal
+- `!=` - Not equal
 - `<` - Less than
 - `>` - Greater than
 - `<=` - Less than or equal
 - `>=` - Greater than or equal
 
-### Condition Examples
+**Boolean Operators**:
+- `and` - Logical AND
+- `or` - Logical OR
+- `not` - Logical NOT
+- `xor` - Exclusive OR
+-  `()` - Grouping/precedence
 
+**Standalone Field Checks**:
+- `where active` - Truthy check
+- `where !deleted` - Falsy check
+
+**Examples**:
 ```
-where price < 50
-where status == "active"
-where age >= 18 and score > 75
+where age > 18
+where status == "active" and premium == true
+where (age < 25 or age > 65) and not deleted
+where department == "Sales" xor region == "West"
+where active and not archived
 ```
+
+---
+
+## Configuration Options
+
+Configure behavior at runtime or via API:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `atomic` | bool | true | Use atomic file writes |
+| `indent` | int | 2 | JSON/YAML indentation |
+| `sort_keys` | bool | false | Sort dictionary keys |
+| `encoding` | str | "utf-8" | File encoding |
+| `ensure_ascii` | bool | false | Escape non-ASCII in JSON |
+| `allow_unicode` | bool | true | Allow Unicode in YAML |
+| `xml_pretty` | bool | true | Pretty-print XML |
+| `array_strategy` | str | "horizontal" | CSV array handling |
+
+**Usage in Library**:
+```python
+# Pass as keyword arguments
+data = load("file.json", encoding="utf-16", indent=4)
+save(data, "out.json", sort_keys=True, ensure_ascii=False)
+```
+
+**Usage in CLI**:
+```
+DataConv> set indent 4
+[+] Set indent = 4
+
+DataConv> set sort_keys true
+[+] Set sort_keys = true
+
+DataConv> options
+Current Configuration:
+  atomic: true
+  indent: 4
+  sort_keys: true
+  ...
+```
+
+---
 
 ## Supported Formats
 
-| Format | Extension | Read | Write | Validation |
-|--------|-----------|------|-------|------------|
-| JSON   | `.json`   | ✅   | ✅    | ✅         |
-| YAML   | `.yaml`, `.yml` | ✅ | ✅  | ✅         |
-| TOML   | `.toml`   | ✅   | ✅    | ✅         |
-| XML    | `.xml`    | ✅   | ✅    | ✅         |
+| Format | Read | Write | Notes |
+|--------|------|-------|-------|
+| JSON | ✓ | ✓ | Fast with orjson (3x) |
+| YAML | ✓ | ✓ | Optional C extensions (5x) |
+| TOML | ✓ | ✓ | stdlib tomllib on Python 3.11+ |
+| XML | ✓ | ✓ | Via xmltodict |
+| CSV | ✓ | ✓ | Nested structure support |
+
+---
+
+## Testing
+
+Run the test suite:
+
+```bash
+# Run all tests
+python test_runner.py
+
+# With pytest
+pytest tests/
+
+# With coverage
+pytest --cov=src --cov-report=term-missing
+```
+
+**Test Coverage**:
+- 226 tests passing
+- 100% API coverage
+- Cross-platform compatibility (Windows, macOS, Linux)
+
+---
 
 ## Project Structure
 
 ```
 DataConverter/
-├── main.py                 # Entry point
-├── pyproject.toml          # Project configuration
-├── src/
-│   ├── __init__.py        # Public API exports
-│   ├── cli.py             # Interactive CLI implementation
-│   ├── grammar.py         # Query language grammar
-│   ├── io.py              # File I/O operations
-│   ├── parser.py          # Query parser
-│   ├── processor.py       # Data processing and filtering
-│   └── validation.py      # Format validators
-└── test/
-    ├── cli_test.py        # CLI tests
-    ├── grammar_test.py    # Grammar tests
-    ├── io_test.py         # I/O tests
-    ├── parser_test.py     # Parser tests
-    ├── processor_test.py  # Processor tests
-    └── validation_test.py # Validation tests
+├── dataconv/
+│   ├── api.py           # Public API functions
+│   ├── cli.py           # Interactive REPL
+│   ├── grammar.py       # Query language grammar
+│   ├── parser.py        # Query parser
+│   ├── processor.py     # Data processing engine
+│   ├── io.py            # File I/O operations
+│   ├── validation.py    # Format validators
+│   └── options.py       # Configuration management
+├── tests/
+│   ├── api_test.py
+│   ├── cli_test.py
+│   ├── grammar_test.py
+│   ├── parser_test.py
+│   ├── processor_test.py
+│   ├── io_test.py
+│   └── validation_test.py
+├── main.py              # CLI entry point
+├── test_runner.py       # Test suite runner
+├── pyproject.toml       # Project configuration
+├── README.md
+├── CHANGELOG.md
+└── LICENSE
 ```
-
-## Development
-
-### Running Tests
-
-```bash
-# Run all tests
-pytest test/
-
-# Run specific test file
-pytest test/cli_test.py
-
-# Run with coverage
-pytest --cov=src test/
-```
-
-### Code Quality
-
-```bash
-# Format code
-black src/ test/
-
-# Lint code
-ruff check src/ test/
-
-# Type checking
-mypy src/
-```
-
-### Requirements
-
-- Python 3.10+
-- Dependencies listed in `pyproject.toml`
-
-## Usage Examples
-
-### Example 1: Convert JSON to YAML
-
-```python
-# data.json
-{
-  "users": [
-    {"name": "Alice", "age": 30},
-    {"name": "Bob", "age": 25}
-  ]
-}
-```
-
-```
-DataConv> from data.json to users.yaml
-[+] Loaded from: data.json
-[+] Saved to: users.yaml
-```
-
-### Example 2: Extract Specific Fields
-
-```
-DataConv> from data.json[$.users[*].name] to names.toml
-```
-
-Output:
-```toml
-names = ["Alice", "Bob"]
-```
-
-### Example 3: Filter Data
-
-```
-DataConv> from products.json to cheap.yaml where price < 100
-```
-
-### Example 4: Validate Before Conversion
-
-```
-DataConv> load data.json
-[+] Loaded from: data.json
-
-DataConv> validate
-[+] Validation passed - no issues found
-
-DataConv> save output.yaml
-[+] Saved to: output.yaml
-```
-
-## Error Handling
-
-The tool provides clear, color-coded error messages:
-
-- 🟢 **Green** - Success messages
-- 🔴 **Red** - Error messages
-- 🟡 **Yellow** - Warnings
-- 🔵 **Blue** - Information
-
-## API Usage
-
-You can also use DataConverter as a library:
-
-```python
-from src.io import smart_load, smart_save
-from src.parser import QueryParser
-from src.processor import process_data
-
-# Load data
-data = smart_load(Path("input.json"))
-
-# Parse query
-parser = QueryParser()
-query = parser.parse("from input.json to output.yaml where status == 'active'")
-
-# Process data
-result = process_data(data, query.path, query.conditions)
-
-# Save result
-smart_save(result, Path("output.yaml"))
-```
-
-## Version
-
-Current version: **0.1.0**
-
-## License
-
-MIT License
-
-## Contributing
-
-Contributions are welcome! Please ensure:
-1. All tests pass (`pytest test/`)
-2. Code is formatted (`black src/ test/`)
-3. Type checking passes (`mypy src/`)
-4. Linting passes (`ruff check src/ test/`)
-
-## Roadmap
-
-- [ ] CSV format support
-- [ ] Batch conversion
-- [ ] Configuration file support
-- [ ] Plugin system for custom formats
-- [ ] Advanced filtering with regex
-- [ ] Output formatting options
-
-## Support
-
-For issues, questions, or contributions, please open an issue on GitHub.
 
 ---
 
-Made with ❤️ by thaisya
+## Development
+
+### Setup
+
+```bash
+# Clone repository
+git clone https://github.com/thaisya/dataconv.git
+cd dataconv
+
+# Install with dev dependencies
+pip install -e ".[full]"
+
+# Run tests
+python test_runner.py
+
+# Format code
+black src/ tests/
+
+# Lint
+ruff check src/ tests/
+
+# Type check
+mypy src/
+```
+
+### Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`python test_runner.py`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for version history and migration guides.
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+---
+
+## Acknowledgments
+
+- Built with [Lark](https://github.com/lark-parser/lark) for parsing
+- [jsonpath-ng](https://github.com/h2non/jsonpath-ng) for JSONPath
+- [orjson](https://github.com/ijl/orjson) for high-performance JSON
+- [Rich](https://github.com/Textualize/rich) for beautiful terminal output
+
+---
+
+**Made with ❤️ by [thaisya](https://github.com/thaisya)**

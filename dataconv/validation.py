@@ -4,7 +4,7 @@ This module provides comprehensive validation logic for JSON, TOML, YAML, and XM
 formats. Each format has specific requirements and constraints that are checked.
 
 Example:
-    >>> from src.validation import validate, FileFormat
+    >>> from dataconv.validation import validate, FileFormat
     >>> data = {'name': 'John', 'age': 30}
     >>> result = validate(data, FileFormat.JSON)
     >>> if result.errors:
@@ -19,7 +19,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any, Callable, Protocol
 
-from src.io import FileFormat
+from dataconv.io import FileFormat
 
 logger = logging.getLogger(__name__)
 
@@ -440,7 +440,7 @@ def validate(data: dict[str, Any], file_format: FileFormat) -> ValidationResult:
         ValidationError: If format is not supported
 
     Example:
-        >>> from src.io import FileFormat
+        >>> from dataconv.io import FileFormat
         >>> data = {'name': 'John', 'age': 30}
         >>> result = validate(data, FileFormat.JSON)
         >>> assert result.is_valid()

@@ -56,7 +56,7 @@ class TestQueryParser:
         assert isinstance(result["conditions"], Comparison)
         assert result["conditions"].field == "age"
         assert result["conditions"].op == ">"
-        assert result["conditions"].value == (25.0, False)  # Now returns tuple
+        assert result["conditions"].value == (25.0, False)
 
     def test_parse_with_and_conditions(self, parser):
         """Test WHERE with multiple AND conditions."""
@@ -105,7 +105,6 @@ class TestQueryParser:
         )
 
         assert isinstance(result["conditions"], OrExpr)
-        # First expression should be the grouped AND
         assert isinstance(result["conditions"].exprs[0], AndExpr)
 
     def test_parse_complex_nested_expression(self, parser):
@@ -116,10 +115,8 @@ class TestQueryParser:
         )
 
         assert isinstance(result["conditions"], OrExpr)
-        # First part is AND with NOT inside
         and_expr = result["conditions"].exprs[0]
         assert isinstance(and_expr, AndExpr)
-        # Second condition in AND should be NOT
         assert isinstance(and_expr.exprs[1], NotExpr)
 
     def test_operator_precedence(self, parser):
@@ -128,7 +125,6 @@ class TestQueryParser:
             "from data.json to output.yaml where age < 18 or age > 65 and retired == true"
         )
 
-        # Should parse as: (age < 18) OR (age > 65 AND retired == true)
         assert isinstance(result["conditions"], OrExpr)
         assert isinstance(result["conditions"].exprs[0], Comparison)
         assert isinstance(result["conditions"].exprs[1], AndExpr)
@@ -137,7 +133,7 @@ class TestQueryParser:
         """Test == operator."""
         result = parser.parse("from data.json to out.yaml where name == \"John\"")
         assert result["conditions"].op == "=="
-        assert result["conditions"].value == ("John", False)  # Now returns tuple
+        assert result["conditions"].value == ("John", False)
 
     def test_parse_inequality_operator(self, parser):
         """Test != operator."""
@@ -160,27 +156,27 @@ class TestQueryParser:
     def test_parse_string_value(self, parser):
         """Test string value parsing."""
         result = parser.parse("from data.json to out.yaml where name == \"Alice\"")
-        assert result["conditions"].value == ("Alice", False)  # Now returns tuple
+        assert result["conditions"].value == ("Alice", False)
 
     def test_parse_number_value(self, parser):
         """Test number value parsing."""
         result = parser.parse("from data.json to out.yaml where age == 30")
-        assert result["conditions"].value == (30.0, False)  # Now returns tuple
+        assert result["conditions"].value == (30.0, False)
 
     def test_parse_boolean_true(self, parser):
         """Test boolean true value."""
         result = parser.parse("from data.json to out.yaml where active == true")
-        assert result["conditions"].value == (True, False)  # Now returns tuple
+        assert result["conditions"].value == (True, False)
 
     def test_parse_boolean_false(self, parser):
         """Test boolean false value."""
         result = parser.parse("from data.json to out.yaml where active == false")
-        assert result["conditions"].value == (False, False)  # Now returns tuple
+        assert result["conditions"].value == (False, False)
 
     def test_parse_null_value(self, parser):
         """Test null value."""
         result = parser.parse("from data.json to out.yaml where metadata == null")
-        assert result["conditions"].value == (None, False)  # Now returns tuple
+        assert result["conditions"].value == (None, False)
 
     def test_parse_nested_path(self, parser):
         """Test nested path expression."""
@@ -197,8 +193,8 @@ class TestQueryParser:
         """Test ParseError on invalid query syntax."""
         invalid_queries = [
             "invalid query",
-            "to output.yaml",  # Missing "from"
-            "from input.json to",  # Missing destination
+            "to output.yaml",
+            "from input.json to",
         ]
 
         for query in invalid_queries:
@@ -313,9 +309,7 @@ class TestParseConditions:
         )
         
         assert isinstance(expr, OrExpr)
-        # First part should be AND
         assert isinstance(expr.exprs[0], AndExpr)
-        # Second part of AND should be NOT
         assert isinstance(expr.exprs[0].exprs[1], NotExpr)
 
     def test_parse_with_parentheses(self, parser):
@@ -325,21 +319,19 @@ class TestParseConditions:
         )
         
         assert isinstance(expr, OrExpr)
-        # First expression should be grouped AND
         assert isinstance(expr.exprs[0], AndExpr)
-        # Second should be simple comparison
         assert isinstance(expr.exprs[1], Comparison)
 
     def test_parse_invalid_expression(self, parser):
         """Test that invalid expressions raise ParseError."""
         with pytest.raises(ParseError):
-            parser._parse_conditions("age > ")  # Invalid syntax
+            parser._parse_conditions("age > ")
         
         with pytest.raises(ParseError):
-            parser._parse_conditions("== 25")  # Missing field
+            parser._parse_conditions("== 25")
         
         with pytest.raises(ParseError):
-            parser._parse_conditions("age >< 25")  # Invalid operator
+            parser._parse_conditions("age >< 25")
 
 
 class TestPathSpecTypedDict:

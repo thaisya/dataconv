@@ -42,7 +42,7 @@ class TestJSONValidator:
     def test_non_string_key_error(self):
         """Test error on non-string dictionary keys."""
         validator = JSONValidator()
-        data = {1: "value"}  # Integer key
+        data = {1: "value"}
 
         result = validator.validate(data)
 
@@ -95,7 +95,7 @@ class TestTOMLValidator:
     def test_heterogeneous_array_warning(self):
         """Test warning on mixed-type arrays."""
         validator = TOMLValidator()
-        data = {"mixed": [1, "string", True]}  # Mixed types
+        data = {"mixed": [1, "string", True]}
 
         result = validator.validate(data)
 
@@ -139,12 +139,12 @@ class TestYAMLValidator:
     def test_non_string_key_warning(self):
         """Test warning (not error) on non-string keys."""
         validator = YAMLValidator()
-        data = {1: "value"}  # Integer key
+        data = {1: "value"}
 
         result = validator.validate(data)
 
         # YAML allows non-string keys but warns
-        assert result.is_valid()  # No errors
+        assert result.is_valid()
         assert len(result.warnings) > 0
         assert "non-string key" in result.warnings[0].message
 
@@ -175,7 +175,7 @@ class TestXMLValidator:
     def test_non_string_key_error(self):
         """Test error on non-string keys."""
         validator = XMLValidator()
-        data = {1: "value"}  # Integer key not allowed in XML
+        data = {1: "value"}
 
         result = validator.validate(data)
 

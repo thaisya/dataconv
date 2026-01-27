@@ -4,7 +4,7 @@ This module provides functionality to extract data using JSONPath expressions
 and filter results based on conditional expressions.
 
 Example:
-    >>> from src.processor import apply_path, apply_conditions
+    >>> from dataconv.processor import apply_path, apply_conditions
     >>>
     >>> data = {'users': [{'name': 'John', 'age': 30}, {'name': 'Jane', 'age': 25}]}
     >>> result = apply_path(data, "users[*].name")
@@ -22,7 +22,7 @@ from typing import Any
 from jsonpath_ng import parse
 from jsonpath_ng.exceptions import JsonPathParserError
 
-from src.parser import AndExpr, BooleanExpr, Comparison, NotExpr, OrExpr, XorExpr
+from dataconv.parser import AndExpr, BooleanExpr, Comparison, NotExpr, OrExpr, XorExpr
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,6 @@ def apply_path(data: dict[str, Any], path: str | None) -> Any:
 
         results = [match.value for match in matches]
 
-        # Return single value if only one match, otherwise return list
         if len(results) == 1:
             logger.info(f"JSONPath '{path}' matched 1 result")
             return results[0]
@@ -105,13 +104,11 @@ def evaluate_condition(value: Any, op: str, expected: Any) -> bool:
         >>> evaluate_condition('John', '==', 'John')
         True
     """
-    # Handle None comparisons
     if value is None or expected is None:
         if op in ("==", "!="):
             return (value == expected) if op == "==" else (value != expected)
         return False
 
-    # Type coercion for numeric comparisons
     try:
         if isinstance(value, (int, float)) and isinstance(expected, (int, float)):
             value_num = float(value)
@@ -120,7 +117,6 @@ def evaluate_condition(value: Any, op: str, expected: Any) -> bool:
             value_num = value
             expected_num = expected
 
-        # Perform comparison
         if op == "==":
             return value_num == expected_num
         elif op == "!=":
@@ -226,7 +222,6 @@ def apply_conditions(
 
     if not isinstance(data, list):
         logger.warning(f"Expected list for filtering, got {type(data).__name__}")
-        # Wrap single items in a list
         data = [data] if isinstance(data, dict) else []
 
     logger.debug(f"Applying boolean expression to {len(data)} items")
@@ -271,10 +266,8 @@ def process_data(
         f"Processing data with path='{path}' and conditions={'present' if conditions else 'none'}"
     )
 
-    # Step 1: Apply path extraction
     extracted = apply_path(data, path)
 
-    # Step 2: Apply conditions if any
     if conditions:
         extracted = apply_conditions(extracted, conditions)
 

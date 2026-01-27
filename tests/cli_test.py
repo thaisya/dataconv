@@ -37,14 +37,12 @@ class TestCLICommands:
         """Test load command with non-existent file."""
         cli._cmd_load("nonexistent.json")
 
-        # Should not raise, just print error message
         assert cli.current_data is None
 
     def test_load_command_no_args(self, cli):
         """Test load command without arguments."""
         cli._cmd_load("")
 
-        # Should not raise, just print usage message
         assert cli.current_data is None
 
     def test_save_command_success(self, cli):
@@ -62,15 +60,11 @@ class TestCLICommands:
 
         cli._cmd_save("output.json")
 
-        # Should not raise, just print error message
-
     def test_save_command_no_args(self, cli):
         """Test save command without arguments."""
         cli.current_data = {"test": "data"}
 
         cli._cmd_save("")
-
-        # Should not raise, just print usage message
 
     def test_convert_command_simple(self, cli):
         """Test basic convert command."""
@@ -94,15 +88,11 @@ class TestCLICommands:
 
         cli._cmd_convert("to output.yaml")
 
-        # Should not raise, just print error message
-
     def test_show_command_with_data(self, cli):
         """Test show command with loaded data."""
         cli.current_data = [{"name": "John"}, {"name": "Jane"}]
 
         cli._cmd_show("")
-
-        # Should not raise, just display data
 
     def test_show_command_no_data(self, cli):
         """Test show command without loaded data."""
@@ -110,15 +100,11 @@ class TestCLICommands:
 
         cli._cmd_show("")
 
-        # Should not raise, just print error message
-
     def test_show_command_with_limit(self, cli):
         """Test show command with custom limit."""
         cli.current_data = [{"id": i} for i in range(100)]
 
         cli._cmd_show("5")
-
-        # Should not raise, just display limited data
 
     def test_status_command_with_data(self, cli):
         """Test status command with loaded file."""
@@ -127,8 +113,6 @@ class TestCLICommands:
         cli.current_data = [{"name": "John"}]
 
         cli._cmd_status("")
-
-        # Should not raise, just display status
 
     def test_status_command_no_data(self, cli):
         """Test status command without loaded file."""
@@ -156,13 +140,9 @@ class TestCLICommands:
 
         cli._cmd_validate("")
 
-        # Should not raise, just print error message
-
     def test_help_command(self, cli):
         """Test help command displays command list."""
         cli._cmd_help("")
-
-        # Should not raise, just display help
 
     def test_exit_command(self, cli):
         """Test exit command."""
@@ -186,8 +166,6 @@ class TestCLICommands:
         """Test clear command."""
         with patch("src.cli.console.clear"):
             cli._cmd_clear("")
-
-            # Should not raise
 
     def test_count_records_list(self, cli):
         """Test record counting for lists."""
@@ -215,20 +193,16 @@ class TestCLICommandParsing:
 
     @pytest.fixture
     def cli(self):
-        """Create an InteractiveCLI instance."""
         return InteractiveCLI(verbose=False)
 
     def test_unknown_command(self, cli):
         """Test handling of unknown command."""
         cli._execute_command("unknown_command arg1 arg2")
 
-        # Should not raise, just print error message
-
     def test_empty_command(self, cli):
         """Test empty command input."""
-        # This would be handled in the run loop, but we can test execute
-        # with empty input
-        pass  # Empty input is filtered in run()
+        # This would be handled in the run loop, but we can test execute with empty input
+        pass
 
     def test_command_case_insensitive(self, cli):
         """Test commands are case-insensitive."""
@@ -245,7 +219,6 @@ class TestCLIIntegration:
 
     @pytest.fixture
     def cli(self):
-        """Create an InteractiveCLI instance."""
         return InteractiveCLI(verbose=False)
 
     def test_load_then_show_workflow(self, cli):
@@ -258,7 +231,6 @@ class TestCLIIntegration:
             assert cli.current_data is not None
 
             cli._cmd_show("")
-            # Should display the loaded data
 
     def test_load_then_save_workflow(self, cli):
         """Test loading then saving to different format."""

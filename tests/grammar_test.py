@@ -80,7 +80,7 @@ class TestQueryGrammar:
         ]
 
         for query in invalid_queries:
-            with pytest.raises(Exception):  # Lark raises various parse exceptions
+            with pytest.raises(Exception):
                 parser.parse(query)
 
 
@@ -151,7 +151,6 @@ class TestJSONPathBracketParsing:
             'from data.json[$.users[?(@.profile["tags"][0] == "admin")]] to out.yaml',
         ]
         
-        # These should parse successfully in the grammar
         for query in queries:
             try:
                 tree = parser.parse(query)
@@ -167,11 +166,11 @@ class TestJSONPathBracketParsing:
         invalid_queries = [
             "invalid query",
             "to only",
-            "where age > 25",  # Missing from/to
+            "where age > 25",
         ]
 
         for query in invalid_queries:
-            with pytest.raises(Exception):  # Lark raises various parse exceptions
+            with pytest.raises(Exception):
                 parser.parse(query)
 
 

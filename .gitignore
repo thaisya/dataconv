@@ -1,6 +1,12 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+.eggs/
+
+files/*
+!files/data.json
 
 .venv/
 venv/

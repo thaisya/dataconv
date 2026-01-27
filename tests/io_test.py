@@ -108,7 +108,7 @@ class TestSmartSave:
         data = {"name": "John", "age": 30}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.json"
-            smart_save(data, output_path)  # Uses default OptionsConfig
+            smart_save(data, output_path)
 
             assert output_path.exists()
             loaded = json.loads(output_path.read_text())
@@ -119,7 +119,7 @@ class TestSmartSave:
         data = {"name": "Jane", "age": 25}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.yaml"
-            smart_save(data, output_path)  # Uses default OptionsConfig
+            smart_save(data, output_path)
 
             assert output_path.exists()
             loaded = yaml.safe_load(output_path.read_text())
@@ -130,7 +130,7 @@ class TestSmartSave:
         data = {"name": "Bob", "age": 35}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.toml"
-            smart_save(data, output_path)  # Uses default OptionsConfig
+            smart_save(data, output_path)
 
             assert output_path.exists()
             loaded = toml.loads(output_path.read_text())
@@ -141,7 +141,7 @@ class TestSmartSave:
         data = {"root": {"name": "Alice", "age": 28}}
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = Path(tmpdir) / "output.xml"
-            smart_save(data, output_path)  # Uses default OptionsConfig
+            smart_save(data, output_path)
 
             assert output_path.exists()
             loaded = xmltodict.parse(output_path.read_text())
@@ -153,12 +153,10 @@ class TestSmartSave:
         """Test difference between atomic and non-atomic writes."""
         data = {"test": "data"}
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Atomic write (default)
             atomic_path = Path(tmpdir) / "atomic.json"
             smart_save(data, atomic_path, OptionsConfig(atomic=True))
             assert atomic_path.exists()
 
-            # Non-atomic write
             non_atomic_path = Path(tmpdir) / "non_atomic.json"
             smart_save(data, non_atomic_path, OptionsConfig(atomic=False))
             assert non_atomic_path.exists()
@@ -231,16 +229,13 @@ class TestParseSourceWithPath:
 
     def test_file_with_literal_brackets_in_name(self):
         """Test that literal brackets in filename are preserved if file exists."""
-        # Create a temp file with brackets in the name
         import tempfile
         import os
         
-        # Create in files directory for consistency
         temp_path = Path("files") / "archive[2024].json"
         temp_path.write_text('{"test": "data"}', encoding='utf-8')
         
         try:
-            # Test that the full path is recognized as a file
             file_path, jsonpath = parse_source_with_path("files/archive[2024].json")
             
             assert file_path == temp_path

@@ -37,12 +37,15 @@ class OptionsConfig:
     allow_unicode: bool = True  # YAML
     pretty: bool = True         # XML
     indent: int = 2             # JSON (when not using orjson) NOT RECOMMENDED TO CHANGE
-    
+    encoding: Literal["utf-8", "utf-16", "utf-32"] = "utf-8"
+    ensure_ascii: bool = False
+
     # CSV-specific options
     array_strategy: Literal["json", "explode", "skip"] = "json"
     array_field: str | None = None
     ignore_nested: bool = False
     preserve_dots: bool = False
+    separator: str = "."
 
     def merge(self, **overrides: Any) -> 'OptionsConfig':
         """Create new OptionsConfig with specified overrides.
@@ -70,11 +73,8 @@ class OptionsConfig:
             True
         """
         try:
-            # Convert dataclass to dict
             current = asdict(self)
-            # Update with overrides
             current.update(overrides)
-            # Create new frozen instance
             return OptionsConfig(**current)
         except TypeError as e:
             raise TypeError (

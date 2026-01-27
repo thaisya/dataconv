@@ -5,7 +5,7 @@ This module provides smart loading and saving of data files in multiple formats
 
 Example:
     >>> from pathlib import Path
-    >>> from src.io import smart_load, smart_save
+    >>> from dataconv.io import smart_load, smart_save
     >>>
     >>> # Load any supported format
     >>> data = smart_load(Path("data.json"))
@@ -46,7 +46,7 @@ except ImportError:
     HAS_YAML_C = False
 
 import xmltodict
-from src.options import OptionsConfig
+from dataconv.options import OptionsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -76,15 +76,12 @@ def normalize_path(path: Path) -> Path:
         >>> normalize_path(Path("files/data.json"))
         Path('files/data.json')
     """
-    # If path is absolute, return it as-is
     if path.is_absolute():
         return path
     
-    # If path is relative and doesn't start with 'files', prefix it
     if not str(path).startswith("files"):
         return Path("files") / path
     
-    # Path already starts with 'files' or is in correct format
     return path
 
 
@@ -117,29 +114,23 @@ def parse_source_with_path(source: str | Path) -> tuple[Path, str | None]:
     """
     source_str = str(source)
     
-    # First, try the full string as-is (handles filenames with brackets)
     full_path = normalize_path(Path(source_str))
     if full_path.exists():
         logger.debug(f"File '{source_str}' exists with literal brackets in name")
         return (full_path, None)
     
-    # Not a literal file, check for JSONPath syntax
     if '[' not in source_str:
-        # No brackets at all, just a regular file path
         return (normalize_path(Path(source_str)), None)
     
-    # Split on first '[' to separate file from JSONPath
     first_bracket = source_str.index('[')
     file_part = source_str[:first_bracket]
     
-    # Remove trailing ']' from the path part
     path_part = source_str[first_bracket+1:]
     if path_part.endswith(']'):
         path_part = path_part[:-1]
     
     file_path = normalize_path(Path(file_part))
     
-    # Validate that the file part exists
     if not file_path.exists():
         logger.warning(f"File not found: {file_path}")
     
@@ -150,15 +141,13 @@ def parse_source_with_path(source: str | Path) -> tuple[Path, str | None]:
 def flatten_dict(
     data: dict[str, Any], 
     parent_key: str = "", 
-    sep: str = ".",
-    options: OptionsConfig = None
+    options: OptionsConfig | None = None
 ) -> dict[str, Any]:
     """Flatten nested dictionary using dot notation.
     
     Args:
         data: Dictionary to flatten
         parent_key: Parent key prefix (for recursion)
-        sep: Separator for nested keys (default: ".")
         options: OptionsConfig instance (uses defaults if None)
     
     Returns:
@@ -176,8 +165,8 @@ def flatten_dict(
         >>> flatten_dict({"user.name": "Alice"}, options=opts)
         {"user\\.name": "Alice"}
     """
-    # Use default options if not provided
     options = options or OptionsConfig()
+    sep = options.separator
     
     items: list[tuple[str, Any]] = []
     
@@ -192,16 +181,13 @@ def flatten_dict(
         
         if isinstance(value, dict):
             if options.ignore_nested:
-                # Skip nested dictionaries
                 continue
             # Recursively flatten nested dict
             items.extend(flatten_dict(value, new_key, sep, options).items())
         elif isinstance(value, list):
             if options.ignore_nested:
-                # Skip arrays
                 continue
-            
-            # Handle arrays based on strategy
+
             if options.array_strategy == "json":
                 # JSON-encode for reliable round-trip (use orjson if available)
                 if HAS_ORJSON:
@@ -222,18 +208,16 @@ def flatten_dict(
                     "Must be one of: json, explode, skip"
                 )
         else:
-            # Keep primitives as-is
             items.append((new_key, value))
     
     return dict(items)
 
 
-def unflatten_dict(data: dict[str, Any], sep: str = ".", options: OptionsConfig = None) -> dict[str, Any]:
+def unflatten_dict(data: dict[str, Any], options: OptionsConfig | None = None) -> dict[str, Any]:
     """Unflatten dictionary with dot notation back to nested structure.
     
     Args:
         data: Flattened dictionary with dot-notation keys
-        sep: Separator used in keys (default: ".")
         options: OptionsConfig instance (uses defaults if None)
     
     Returns:
@@ -251,9 +235,8 @@ def unflatten_dict(data: dict[str, Any], sep: str = ".", options: OptionsConfig 
         >>> unflatten_dict({"user\\.name": "Alice"}, options=opts)
         {"user.name": "Alice"}
     """
-    # Use default options if not provided
     options = options or OptionsConfig()
-    
+    sep = options.separator    
     result: dict[str, Any] = {}
     
     for key, value in data.items():
@@ -262,13 +245,11 @@ def unflatten_dict(data: dict[str, Any], sep: str = ".", options: OptionsConfig 
             parts = key.replace(f"\\{sep}", "\x00").split(sep)
             parts = [p.replace("\x00", sep) for p in parts]
         else:
-            # Simple split - no escaping
             parts = key.split(sep)
         
         # Parse arrays based on strategy
         if options.array_strategy == "json" and isinstance(value, str):
             try:
-                # Try to parse as JSON (use orjson if available)
                 if HAS_ORJSON:
                     parsed = orjson.loads(value)
                 else:
@@ -350,7 +331,6 @@ def explode_arrays(
         array_value = record.get(array_field)
         
         if not isinstance(array_value, list) or not array_value:
-            # Not an array or empty - keep row as-is
             exploded.append(record)
         else:
             # Create one row per array element
@@ -426,7 +406,7 @@ def detect_format(path: Path) -> FileFormat:
         )
 
 
-def smart_load(path: Path) -> dict[str, Any]:
+def smart_load(path: Path, options: OptionsConfig | None = None) -> dict[str, Any]:
     """Load data from file with automatic format detection.
 
     Automatically detects the file format based on extension and uses the
@@ -434,6 +414,7 @@ def smart_load(path: Path) -> dict[str, Any]:
 
     Args:
         path: Path to the file to load
+        options: OptionsConfig instance (uses defaults if None)
 
     Returns:
         Loaded data as a dictionary
@@ -446,9 +427,11 @@ def smart_load(path: Path) -> dict[str, Any]:
         >>> data = smart_load(Path("config.json"))
         >>> print(data['version'])
     """
-    # Normalize path to default to 'files' directory for relative paths
     path = normalize_path(path)
     
+    options = options or OptionsConfig()
+    encoding = options.encoding
+
     logger.debug(f"Loading file: {path}")
 
     if not path.exists():
@@ -457,7 +440,7 @@ def smart_load(path: Path) -> dict[str, Any]:
     file_format = detect_format(path)
 
     try:
-        with open(path, encoding="utf-8") as file:
+        with open(path, encoding=encoding) as file:
             if file_format == FileFormat.JSON:
                 if HAS_ORJSON:
                     # orjson requires bytes
@@ -477,12 +460,9 @@ def smart_load(path: Path) -> dict[str, Any]:
             elif file_format == FileFormat.XML:
                 data = xmltodict.parse(file.read())
             elif file_format == FileFormat.CSV:
-                # Load CSV as list of dicts
                 reader = csv.DictReader(file)
                 csv_data = list(reader)
                 
-                # Unflatten each row (convert dot notation to nested dicts)
-                # Default to json strategy for array parsing
                 data = [unflatten_dict(row, array_strategy="json") for row in csv_data]
             else:
                 raise UnsupportedFormatError(f"Unsupported format: {file_format}")
@@ -500,7 +480,7 @@ def smart_load(path: Path) -> dict[str, Any]:
 def smart_save(
     data: dict[str, Any],
     path: Path,
-    options: OptionsConfig = None,
+    options: OptionsConfig | None = None,
 ) -> None:
     """Save data to file with automatic format detection.
 
@@ -532,32 +512,29 @@ def smart_save(
         >>> opts = OptionsConfig(array_strategy="explode", array_field="tags")
         >>> smart_save(data, Path("out.csv"), opts)
     """
-    # Use default options if not provided
     options = options or OptionsConfig()
-    
-    # Normalize path to default to 'files' directory for relative paths
+    encoding = options.encoding
+    ensure_ascii = options.ensure_ascii
     path = normalize_path(path)
     
     logger.debug(f"Saving file: {path} (atomic={options.atomic})")
 
     file_format = detect_format(path)
 
-    # Ensure parent directory exists
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Determine target path (temp file for atomic writes)
     if options.atomic:
         fd, temp_path_str = tempfile.mkstemp(
             dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
         )
         temp_path = Path(temp_path_str)
-        os.close(fd)  # Close file descriptor, we'll open with context manager
+        os.close(fd)
         target_path = temp_path
     else:
         target_path = path
 
     try:
-        with open(target_path, "w", encoding="utf-8") as file:
+        with open(target_path, "w", encoding=encoding) as file:
             if file_format == FileFormat.JSON:
                 if HAS_ORJSON:
                     # orjson.dumps returns bytes, need to decode
@@ -566,22 +543,19 @@ def smart_save(
                     file.write(output.decode('utf-8'))
                 else:
                     # Use indent from options (or fall back to 2)
-                    json.dump(data, file, indent=options.indent)
+                    json.dump(data, file, indent=options.indent, ensure_ascii=options.ensure_ascii)
 
             elif file_format == FileFormat.TOML:
                 toml.dump(data, file)
 
             elif file_format == FileFormat.YAML:
-                # Use allow_unicode from options
                 yaml.dump(data, file, Dumper=YAMLDumper, allow_unicode=options.allow_unicode)
 
             elif file_format == FileFormat.XML:
-                # Use pretty from options
                 xml_string = xmltodict.unparse(data, pretty=options.pretty)
                 file.write(xml_string)
 
             elif file_format == FileFormat.CSV:
-                # CSV requires list of dictionaries
                 if not isinstance(data, list):
                     raise FileSaveError(
                         "CSV format requires a list of dictionaries. "
@@ -632,7 +606,6 @@ def smart_save(
         logger.info(f"Successfully saved {file_format.value} file: {path}")
 
     except Exception as e:
-        # Clean up temp file on error
         if options.atomic and temp_path.exists():
             temp_path.unlink()
             logger.debug(f"Cleaned up temp file: {temp_path}")

@@ -12,7 +12,7 @@ Usage:
     dataconv> convert to output.yaml where age > 25
 """
 
-from src.cli import InteractiveCLI
+from dataconv.cli import InteractiveCLI
 import sys
 
 def main() -> None:

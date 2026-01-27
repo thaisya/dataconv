@@ -340,68 +340,6 @@ class TestJSONPathGrammar:
         
         assert result == "value"
     
-    # Filter Expressions - NOT SUPPORTED by jsonpath-ng library
-    # Grammar can parse them, but jsonpath-ng cannot execute them
-    # def test_simple_filter(self):
-    #     """Test simple filter expression."""
-    #     data = {
-    #         "users": [
-    #             {"age": 15},
-    #             {"age": 25},
-    #             {"age": 35}
-    #         ]
-    #     }
-    #     result = apply_path(data, "users[?(@.age > 18)]")
-    #    
-    #     assert len(result) == 2
-    #     assert result[0]["age"] == 25
-    
-    # def test_filter_with_nested_bracket(self):
-    #     """Test filter expression with nested bracket access."""
-    #     data = {
-    #         "items": [
-    #             {"data": [0, 1]},
-    #             {"data": [1, 2]},
-    #             {"data": [2, 3]}
-    #         ]
-    #     }
-    #     result = apply_path(data, "items[?(@.data[0] == 1)]")
-    #    
-    #     assert len(result) == 1
-    #     assert result[0]["data"] == [1, 2]
-    
-    # def test_complex_filter(self):
-    #     """Test complex filter with quoted strings and nested brackets."""
-    #     data = {
-    #         "users": [
-    #             {"profile": {"tags": ["user"]}},
-    #             {"profile": {"tags": ["admin"]}},
-    #             {"profile": {"tags": ["guest"]}}
-    #         ]
-    #     }
-    #     result = apply_path(data, 'users[?(@.profile["tags"][0] == "admin")]')
-    #    
-    #     assert len(result) == 1
-    #     assert result[0]["profile"]["tags"][0] == "admin"
-    
-    # Advanced Cases
-    # NOTE: Some advanced JSONPath features are parsed correctly by our grammar
-    # but are not supported by the jsonpath-ng library at runtime
-    
-    # def test_multiple_filters(self):
-    #     """Test multiple consecutive filters - NOT SUPPORTED by jsonpath-ng."""
-    #     data = {
-    #         "users": [
-    #             {"age": 25, "active": True},
-    #             {"age": 25, "active": False},
-    #             {"age": 35, "active": True}
-    #         ]
-    #     }
-    #     result = apply_path(data, "users[?(@.age > 18)][?(@.active == true)]")
-    #    
-    #     assert len(result) == 2
-    #     assert all(u["age"] > 18 and u["active"] for u in result)
-    
     def test_recursive_descent(self):
         """Test recursive descent operator."""
         data = {
@@ -415,13 +353,6 @@ class TestJSONPathGrammar:
         result = apply_path(data, "$.store..price")
         
         assert result == [10, 20]
-    
-    # def test_union_operator(self):
-    #     """Test union operator - NOT SUPPORTED by jsonpath-ng."""
-    #     data = {"items": ["a", "b", "c", "d"]}
-    #     result = apply_path(data, "items[0,2]")
-    #    
-    #     assert result == ["a", "c"]
 
 
 class TestBooleanFieldNegation:
@@ -437,60 +368,60 @@ class TestBooleanFieldNegation:
         from src.processor import evaluate_boolean_expr
         
         item = {"status": False}
-        expr = Comparison("status", "==", (True, True))  # !true
+        expr = Comparison("status", "==", (True, True))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # False == !True (False) → True
+        assert result is True
     
     def test_negated_literal_false(self):
         """Test negating literal 'false' in comparison."""
         from src.processor import evaluate_boolean_expr
         
         item = {"active": True}
-        expr = Comparison("active", "==", (False, True))  # !false
+        expr = Comparison("active", "==", (False, True))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # True == !False (True) → True
+        assert result is True
     
     def test_non_negated_literal(self):
         """Test non-negated literal value."""
         from src.processor import evaluate_boolean_expr
         
         item = {"enabled": True}
-        expr = Comparison("enabled", "==", (True, False))  # true (not negated)
+        expr = Comparison("enabled", "==", (True, False))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # True == True → True
+        assert result is True
     
     def test_field_reference_negation_match(self):
         """Test negating a field reference - matching case."""
         from src.processor import evaluate_boolean_expr
         
         item = {"status": True, "disabled": False}
-        expr = Comparison("status", "==", ("disabled", True))  # !disabled
+        expr = Comparison("status", "==", ("disabled", True))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # True == !False (True) → True
+        assert result is True
     
     def test_field_reference_negation_no_match(self):
         """Test negating a field reference - non-matching case."""
         from src.processor import evaluate_boolean_expr
         
         item = {"status": False, "active": True}
-        expr = Comparison("status", "==", ("active", True))  # !active
+        expr = Comparison("status", "==", ("active", True))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # False == !True (False) → True
+        assert result is True
     
     def test_field_reference_without_negation(self):
         """Test field reference without negation."""
         from src.processor import evaluate_boolean_expr
         
         item = {"enabled": True, "active": True}
-        expr = Comparison("enabled", "==", ("active", False))  # active (not negated)
+        expr = Comparison("enabled", "==", ("active", False))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # True == True → True
+        assert result is True
     
     def test_nonexistent_field_reference(self):
         """Test negating a field that doesn't exist (treated as literal string)."""
@@ -500,7 +431,7 @@ class TestBooleanFieldNegation:
         expr = Comparison("name", "==", ("nonexistent", False))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is False  # "John" == "nonexistent" → False
+        assert result is False
     
     def test_complex_and_with_negation(self):
         """Test AND expression with negated field reference."""
@@ -509,11 +440,11 @@ class TestBooleanFieldNegation:
         item = {"age": 30, "active": True, "locked": False}
         expr = AndExpr([
             Comparison("age", ">", 25),
-            Comparison("active", "==", ("locked", True))  # active == !locked
+            Comparison("active", "==", ("locked", True))
         ])
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # age > 25 AND True == !False → True AND True → True
+        assert result is True
     
     def test_apply_conditions_with_field_negation(self):
         """Test filtering data with field reference negation."""
@@ -528,29 +459,29 @@ class TestBooleanFieldNegation:
         result = apply_conditions(data, expr)
         
         assert len(result) == 2
-        assert result[0]["name"] == "Alice"  # True == !False → True == True ✓
-        assert result[1]["name"] == "Bob"    # False == !True → False == False ✓
+        assert result[0]["name"] == "Alice"
+        assert result[1]["name"] == "Bob"
     
     def test_negation_with_inequality_operator(self):
         """Test negation with != operator."""
         from src.processor import evaluate_boolean_expr
         
         item = {"premium": True, "trial": True}
-        expr = Comparison("premium", "!=", ("trial", True))  # premium != !trial
+        expr = Comparison("premium", "!=", ("trial", True))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # True != !True → True != False → True
+        assert result is True
     
     def test_field_reference_with_none_value(self):
         """Test field reference negation when field value is None."""
         from src.processor import evaluate_boolean_expr
         
         item = {"status": True, "disabled": None}
-        expr = Comparison("status", "==", ("disabled", True))  # status == !disabled
+        expr = Comparison("status", "==", ("disabled", True))
         
         result = evaluate_boolean_expr(item, expr)
         # disabled is None, !None should be True (not of falsy value)
-        assert result is True  # True == !None → True == True → True
+        assert result is True
 
 
 class TestStandaloneFieldChecks:
@@ -561,20 +492,20 @@ class TestStandaloneFieldChecks:
         from src.processor import evaluate_boolean_expr
         
         item = {"status": True}
-        expr = Comparison("status", "==", (True, False))  # Equivalent to 'where status'
+        expr = Comparison("status", "==", (True, False))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # True == True → True
+        assert result is True
     
     def test_falsy_field_check_with_false(self):
         """Test 'where !field' syntax with False value."""
         from src.processor import evaluate_boolean_expr, NotExpr
         
         item = {"status": False}
-        expr = NotExpr(Comparison("status", "==", (True, False)))  # Equivalent to 'where !status'
+        expr = NotExpr(Comparison("status", "==", (True, False)))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # !(False == True) → !False → True
+        assert result is True
     
     def test_truthy_field_check_fails_on_false(self):
         """Test 'where field' returns False when field is False."""
@@ -584,7 +515,7 @@ class TestStandaloneFieldChecks:
         expr = Comparison("status", "==", (True, False))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is False  # False == True → False
+        assert result is False
     
     def test_field_check_with_and(self):
         """Test field check in AND expression."""
@@ -592,13 +523,13 @@ class TestStandaloneFieldChecks:
         
         item = {"active": True, "verified": True, "age": 25}
         expr = AndExpr([
-            Comparison("active", "==", (True, False)),    # where active
-            Comparison("verified", "==", (True, False)),  # where verified  
-            Comparison("age", ">", (18, False))           # where age > 18
+            Comparison("active", "==", (True, False)),
+            Comparison("verified", "==", (True, False)),
+            Comparison("age", ">", (18, False))
         ])
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # All conditions true
+        assert result is True
     
     def test_field_check_with_or(self):
         """Test field check in OR expression."""
@@ -606,22 +537,22 @@ class TestStandaloneFieldChecks:
         
         item = {"premium": False, "trial": True}
         expr = OrExpr([
-            Comparison("premium", "==", (True, False)),  # where premium (False)
-            Comparison("trial", "==", (True, False))     # where trial (True)
+            Comparison("premium", "==", (True, False)),
+            Comparison("trial", "==", (True, False))
         ])
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # At least one is true (trial)
+        assert result is True
     
     def test_negated_field_with_true_value(self):
         """Test 'where !field' with field=True."""
         from src.processor import evaluate_boolean_expr, NotExpr
         
         item = {"locked": True}
-        expr = NotExpr(Comparison("locked", "==", (True, False)))  # where !locked
+        expr = NotExpr(Comparison("locked", "==", (True, False)))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is False  # !(True == True) → !True → False
+        assert result is False
     
     def test_field_check_with_none_value(self):
         """Test field check treats None as falsy."""
@@ -631,7 +562,7 @@ class TestStandaloneFieldChecks:
         expr = Comparison("status", "==", (True, False))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is False  # None == True → False
+        assert result is False
     
     def test_field_check_with_nonexistent_field(self):
         """Test field check with non-existent field."""
@@ -641,7 +572,7 @@ class TestStandaloneFieldChecks:
         expr = Comparison("status", "==", (True, False))
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is False  # None == True → False
+        assert result is False
     
     def test_complex_nested_field_checks(self):
         """Test complex nesting: (active and !locked) or admin."""
@@ -650,14 +581,14 @@ class TestStandaloneFieldChecks:
         item = {"active": True, "locked": False, "admin": False}
         expr = OrExpr([
             AndExpr([
-                Comparison("active", "==", (True, False)),  # active
-                NotExpr(Comparison("locked", "==", (True, False)))  # !locked
+                Comparison("active", "==", (True, False)),
+                NotExpr(Comparison("locked", "==", (True, False)))
             ]),
-            Comparison("admin", "==", (True, False))  # admin
+            Comparison("admin", "==", (True, False))
         ])
         
         result = evaluate_boolean_expr(item, expr)
-        assert result is True  # (True and !False) or False → (True and True) or False → True
+        assert result is True
     
     def test_apply_conditions_with_field_check(self):
         """Test filtering data using standalone field checks."""

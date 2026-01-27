@@ -6,17 +6,18 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dataconverter"
-version = "0.3.1"
-description = "Professional CLI tool for converting data between JSON, YAML, TOML, and XML formats"
+name = "dataconv"
+version = "1.0.0"
+description = "Professional data format converter with powerful query language and library API for JSON, YAML, TOML, XML, and CSV"
+readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "thaisya", email = "nikitapetruchekk@gmail.com"}
 ]
-keywords = ["data", "converter", "json", "yaml", "toml", "xml", "cli"]
+keywords = ["data", "converter", "json", "yaml", "toml", "xml", "cli", "csv", "dataconv"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Utilities",
@@ -28,27 +29,44 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 
-# Runtime dependencies
+# Core dependencies (minimal for library use)
+# These are required for basic data conversion and API functionality
 dependencies = [
     "lark>=1.1.9",           # Parser generator for query language
     "jsonpath-ng>=1.6.1",    # JSONPath expressions
     "pyyaml>=6.0.1",         # YAML support
     "xmltodict>=0.13.0",     # XML to dict conversion
-    "rich>=13.7.0",          # Beautiful terminal output
-    "toml>=0.10.2",          # TOML support
+    "toml>=0.10.2",          # TOML support (for Python < 3.11)
+    "orjson>=3.9.0",         # Fast JSON (3x speedup, drop-in replacement)
 ]
 
-# Optional development dependencies
+# Optional dependencies
 [project.optional-dependencies]
+
+# CLI dependencies - for interactive REPL experience
+cli = [
+    "rich>=13.7.0",          # Beautiful terminal output, progress bars, tables
+]
+
+# Development tools
 dev = [
+    "pytest>=8.0.0",         # Testing framework
+    "pytest-cov>=4.1.0",     # Coverage reporting
     "black>=24.0.0",         # Code formatter
     "ruff>=0.6.0",           # Fast Python linter
     "mypy>=1.11.0",          # Type checker
+    "types-PyYAML>=6.0.0",   # Type stubs for PyYAML
+    "types-toml>=0.10.0",    # Type stubs for toml
 ]
 
-# CLI entry point
+# Everything - all optional dependencies
+full = [
+    "dataconv[cli,dev]",
+]
+
+# CLI entry point (only works if 'cli' extras installed)
 [project.scripts]
-dataconv = "main:main"
+dataconv = "dataconv.main:main"
 
 # Tool configurations
 [tool.black]
@@ -90,3 +108,12 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = ["jsonpath_ng.*", "xmltodict.*"]
 ignore_missing_imports = true
+
+# Package discovery - only include dataconv package
+[tool.setuptools.packages.find]
+include = ["dataconv*"]
+exclude = ["files*", "tests*", "*.tests", "*.tests.*"]
+
+
+
+

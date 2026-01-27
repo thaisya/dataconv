@@ -27,13 +27,12 @@ from rich.panel import Panel
 from rich.table import Table
 
 from src import __version__
-from src.io import DataConverterIOError, detect_format, smart_load, smart_save
-from src.parser import ParseError, QueryParser
-from src.processor import ProcessorError, apply_path, apply_conditions, process_data
-from src.validation import ValidationError, format_validation_report, validate
-from src.options import OptionsConfig
+from dataconv.io import DataConverterIOError, detect_format, smart_load, smart_save
+from dataconv.parser import ParseError, QueryParser
+from dataconv.processor import ProcessorError, apply_path, apply_conditions, process_data
+from dataconv.validation import ValidationError, format_validation_report, validate
+from dataconv.options import OptionsConfig
 
-# Initialize Rich console
 console = Console()
 
 
@@ -88,13 +87,11 @@ class InteractiveCLI:
 
         while self.running:
             try:
-                # Get user input
                 user_input = input("dataconv> ").strip()
 
                 if not user_input:
                     continue
 
-                # Parse and execute command
                 self._execute_command(user_input)
 
             except KeyboardInterrupt:
@@ -127,17 +124,14 @@ class InteractiveCLI:
         Args:
             user_input: Raw user input string
         """
-        # Check if input is a query (starts with 'from')
         if user_input.strip().lower().startswith('from'):
             self._execute_query(user_input)
             return
 
-        # Otherwise treat as helper command
         parts = user_input.split(maxsplit=1)
         command = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
 
-        # Simplified command dispatch
         commands = {
             "help": self._cmd_help,
             "exit": self._cmd_exit,
@@ -166,11 +160,9 @@ class InteractiveCLI:
             query: Full query string (e.g., "from data.json[users[*]] to out.yaml where age > 25")
         """
         try:
-            # Parse the query
             parser = QueryParser()
             parsed_query = parser.parse(query)
 
-            # Extract components
             source_file = Path(parsed_query["source"]["file"])
             source_path = parsed_query["source"]["path"]
             dest_spec = parsed_query["dest"]
@@ -178,24 +170,19 @@ class InteractiveCLI:
             conditions = parsed_query["conditions"]
 
 
-            # Load source data
             console.print(f"[cyan]Loading: {source_file}[/cyan]")
             data = smart_load(source_file)
 
-            # Apply path extraction if specified
             if source_path:
                 console.print(f"[cyan]Extracting path: [{source_path}][/cyan]")
                 data = apply_path(data, source_path)
 
-            # Apply conditions if specified
             if conditions:
                 console.print(f"[cyan]Applying filters...[/cyan]")
                 data = apply_conditions(data if isinstance(data, list) else [data], conditions)
 
-            # Save to destination if specified
             if dest_file:
 
-                # Validate before saving
                 target_format = detect_format(dest_file)
                 validation_result = validate(data, target_format)
 
@@ -222,14 +209,11 @@ class InteractiveCLI:
                         )
                         data = {"root": {"item": data}}
 
-                # Save to destination using OptionsConfig
                 smart_save(data, dest_file, self.options)
 
-            # Update state
             self.current_data = data
             self.current_file = dest_file if dest_file else None
 
-            # Success message
             record_count = self._count_records(data)
             if dest_file:
                 console.print(f"[green][+] Processed {record_count} record(s) -> {dest_file}[/green]")
@@ -264,7 +248,6 @@ class InteractiveCLI:
             self.current_file = file_path
             self.current_format = detect_format(file_path).value
 
-            # Count records
             record_count = self._count_records(self.current_data)
             console.print(
                 f"[green][+] Loaded:[/green] {file_path.name} "
@@ -314,8 +297,6 @@ class InteractiveCLI:
             console.print("[red][X] No data loaded. Use 'load <file>' first.[/red]")
             return
 
-        # Parse the convert command
-        # Expected format: "to <file> [where <conditions>]"
         if not args.lower().startswith("to "):
             console.print("[red]Usage: convert to <file> [where <conditions>][/red]")
             return
@@ -339,10 +320,8 @@ class InteractiveCLI:
                     "[yellow][!] Warning: Path expressions on destination are ignored[/yellow]"
                 )
 
-            # Start with current data
             data = self.current_data
 
-            # Apply path and conditions if specified
             source_path = parsed_query["source"]["path"]
             if source_path or conditions:
                 try:
@@ -351,7 +330,6 @@ class InteractiveCLI:
                     console.print(f"[red][X] Processing error: {e}[/red]")
                     return
 
-            # Validate for target format
             try:
                 target_format = detect_format(dest_file)
                 validation_result = validate(data, target_format)
@@ -359,7 +337,6 @@ class InteractiveCLI:
                 console.print(f"[red][X] Validation error: {e}[/red]")
                 return
 
-            # Display validation warnings
             if validation_result.warnings:
                 console.print("[yellow][!] Validation Warnings:[/yellow]")
                 for warning in validation_result.warnings:
@@ -387,10 +364,8 @@ class InteractiveCLI:
                     )
                     data = {"root": {"item": data}}
 
-            # Save the file
             smart_save(data, dest_file, atomic=True)
 
-            # Success message
             record_count = self._count_records(data)
             if conditions:
                 console.print(
@@ -462,7 +437,7 @@ class InteractiveCLI:
             console.print("[red][X] No data loaded. Use 'load <file>' first.[/red]")
             return
 
-        from src.io import FileFormat
+        from dataconv.io import FileFormat
 
         # Determine target format
         if args.strip():
