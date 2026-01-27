@@ -79,9 +79,6 @@ def normalize_path(path: Path) -> Path:
     if path.is_absolute():
         return path
     
-    if not str(path).startswith("files"):
-        return Path("files") / path
-    
     return path
 
 
