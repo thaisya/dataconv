@@ -2,7 +2,7 @@
 
 > Professional data format converter with powerful query language and library API
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/yourusername/dataconv)
+[![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)](https://github.com/thaisya/dataconv)
 [![Python](https://img.shields.io/badge/python-3.10+-brightgreen.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-226%20passing-success.svg)](./tests)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
@@ -417,8 +417,8 @@ Configure behavior at runtime or via API:
 | `encoding` | str | "utf-8" | File encoding |
 | `ensure_ascii` | bool | false | Escape non-ASCII in JSON |
 | `allow_unicode` | bool | true | Allow Unicode in YAML |
-| `xml_pretty` | bool | true | Pretty-print XML |
-| `array_strategy` | str | "horizontal" | CSV array handling |
+| `pretty` | bool | true | Pretty-print XML |
+| `array_strategy` | str | "json" | CSV array handling |
 
 **Usage in Library**:
 ```python
@@ -469,7 +469,7 @@ python test_runner.py
 pytest tests/
 
 # With coverage
-pytest --cov=src --cov-report=term-missing
+pytest --cov=dataconv --cov-report=term-missing
 ```
 
 **Test Coverage**:
@@ -526,13 +526,13 @@ pip install -e ".[full]"
 python test_runner.py
 
 # Format code
-black src/ tests/
+black dataconv/ tests/
 
 # Lint
-ruff check src/ tests/
+ruff check dataconv/ tests/
 
 # Type check
-mypy src/
+mypy dataconv/
 ```
 
 ### Contributing

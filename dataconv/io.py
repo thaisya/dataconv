@@ -549,6 +549,10 @@ def smart_save(
                 yaml.dump(data, file, Dumper=YAMLDumper, allow_unicode=options.allow_unicode)
 
             elif file_format == FileFormat.XML:
+                if isinstance(data, list):
+                    logger.warning("Wrapping list in <root><item>...</item></root> for XML compatibility")
+                    data = {"root": {"item": data}}
+                
                 xml_string = xmltodict.unparse(data, pretty=options.pretty)
                 file.write(xml_string)
 

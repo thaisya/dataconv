@@ -23,5 +23,5 @@ Usage:
 
 from .api import convert, query, load, save, filter, extract_path
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __all__ = ["convert", "query", "load", "save", "filter", "extract_path"]
