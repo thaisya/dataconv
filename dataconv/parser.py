@@ -135,6 +135,10 @@ class QueryTransformer(Transformer):
         """Transform ESCAPED_STRING token to string (removes quotes)."""
         return str(token.value[1:-1])
 
+    def SINGLE_QUOTED_STRING(self, token: Token) -> str:
+        """Transform SINGLE_QUOTED_STRING token to string (removes quotes)."""
+        return str(token.value[1:-1])
+
     def SIGNED_NUMBER(self, token: Token) -> float:
         """Transform SIGNED_NUMBER token to float."""
         return float(token.value)

@@ -1,4 +1,4 @@
-"""Unit tests for src/processor.py module.
+"""Unit tests for dataconv/processor.py module.
 
 Tests cover:
 - JSONPath extraction (apply_path)
@@ -9,14 +9,14 @@ Tests cover:
 
 import pytest
 
-from src.processor import (
+from dataconv.processor import (
     ProcessorError,
     apply_conditions,
     apply_path,
     evaluate_condition,
     process_data,
 )
-from src.parser import AndExpr, Comparison
+from dataconv.parser import AndExpr, Comparison
 
 
 class TestApplyPath:
@@ -365,7 +365,7 @@ class TestBooleanFieldNegation:
     
     def test_negated_literal_true(self):
         """Test negating literal 'true' in comparison."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"status": False}
         expr = Comparison("status", "==", (True, True))
@@ -375,7 +375,7 @@ class TestBooleanFieldNegation:
     
     def test_negated_literal_false(self):
         """Test negating literal 'false' in comparison."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"active": True}
         expr = Comparison("active", "==", (False, True))
@@ -385,7 +385,7 @@ class TestBooleanFieldNegation:
     
     def test_non_negated_literal(self):
         """Test non-negated literal value."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"enabled": True}
         expr = Comparison("enabled", "==", (True, False))
@@ -395,7 +395,7 @@ class TestBooleanFieldNegation:
     
     def test_field_reference_negation_match(self):
         """Test negating a field reference - matching case."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"status": True, "disabled": False}
         expr = Comparison("status", "==", ("disabled", True))
@@ -405,7 +405,7 @@ class TestBooleanFieldNegation:
     
     def test_field_reference_negation_no_match(self):
         """Test negating a field reference - non-matching case."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"status": False, "active": True}
         expr = Comparison("status", "==", ("active", True))
@@ -415,7 +415,7 @@ class TestBooleanFieldNegation:
     
     def test_field_reference_without_negation(self):
         """Test field reference without negation."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"enabled": True, "active": True}
         expr = Comparison("enabled", "==", ("active", False))
@@ -425,7 +425,7 @@ class TestBooleanFieldNegation:
     
     def test_nonexistent_field_reference(self):
         """Test negating a field that doesn't exist (treated as literal string)."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"name": "John"}
         expr = Comparison("name", "==", ("nonexistent", False))
@@ -435,7 +435,7 @@ class TestBooleanFieldNegation:
     
     def test_complex_and_with_negation(self):
         """Test AND expression with negated field reference."""
-        from src.processor import evaluate_boolean_expr, AndExpr
+        from dataconv.processor import evaluate_boolean_expr, AndExpr
         
         item = {"age": 30, "active": True, "locked": False}
         expr = AndExpr([
@@ -464,7 +464,7 @@ class TestBooleanFieldNegation:
     
     def test_negation_with_inequality_operator(self):
         """Test negation with != operator."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"premium": True, "trial": True}
         expr = Comparison("premium", "!=", ("trial", True))
@@ -474,7 +474,7 @@ class TestBooleanFieldNegation:
     
     def test_field_reference_with_none_value(self):
         """Test field reference negation when field value is None."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"status": True, "disabled": None}
         expr = Comparison("status", "==", ("disabled", True))
@@ -489,7 +489,7 @@ class TestStandaloneFieldChecks:
     
     def test_truthy_field_check(self):
         """Test 'where field' syntax with truthy value."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"status": True}
         expr = Comparison("status", "==", (True, False))
@@ -499,7 +499,7 @@ class TestStandaloneFieldChecks:
     
     def test_falsy_field_check_with_false(self):
         """Test 'where !field' syntax with False value."""
-        from src.processor import evaluate_boolean_expr, NotExpr
+        from dataconv.processor import evaluate_boolean_expr, NotExpr
         
         item = {"status": False}
         expr = NotExpr(Comparison("status", "==", (True, False)))
@@ -509,7 +509,7 @@ class TestStandaloneFieldChecks:
     
     def test_truthy_field_check_fails_on_false(self):
         """Test 'where field' returns False when field is False."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"status": False}
         expr = Comparison("status", "==", (True, False))
@@ -519,7 +519,7 @@ class TestStandaloneFieldChecks:
     
     def test_field_check_with_and(self):
         """Test field check in AND expression."""
-        from src.processor import evaluate_boolean_expr, AndExpr
+        from dataconv.processor import evaluate_boolean_expr, AndExpr
         
         item = {"active": True, "verified": True, "age": 25}
         expr = AndExpr([
@@ -533,7 +533,7 @@ class TestStandaloneFieldChecks:
     
     def test_field_check_with_or(self):
         """Test field check in OR expression."""
-        from src.processor import evaluate_boolean_expr, OrExpr
+        from dataconv.processor import evaluate_boolean_expr, OrExpr
         
         item = {"premium": False, "trial": True}
         expr = OrExpr([
@@ -546,7 +546,7 @@ class TestStandaloneFieldChecks:
     
     def test_negated_field_with_true_value(self):
         """Test 'where !field' with field=True."""
-        from src.processor import evaluate_boolean_expr, NotExpr
+        from dataconv.processor import evaluate_boolean_expr, NotExpr
         
         item = {"locked": True}
         expr = NotExpr(Comparison("locked", "==", (True, False)))
@@ -556,7 +556,7 @@ class TestStandaloneFieldChecks:
     
     def test_field_check_with_none_value(self):
         """Test field check treats None as falsy."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"status": None}
         expr = Comparison("status", "==", (True, False))
@@ -566,7 +566,7 @@ class TestStandaloneFieldChecks:
     
     def test_field_check_with_nonexistent_field(self):
         """Test field check with non-existent field."""
-        from src.processor import evaluate_boolean_expr
+        from dataconv.processor import evaluate_boolean_expr
         
         item = {"other": True}
         expr = Comparison("status", "==", (True, False))
@@ -576,7 +576,7 @@ class TestStandaloneFieldChecks:
     
     def test_complex_nested_field_checks(self):
         """Test complex nesting: (active and !locked) or admin."""
-        from src.processor import evaluate_boolean_expr, OrExpr, AndExpr, NotExpr
+        from dataconv.processor import evaluate_boolean_expr, OrExpr, AndExpr, NotExpr
         
         item = {"active": True, "locked": False, "admin": False}
         expr = OrExpr([
@@ -608,7 +608,7 @@ class TestStandaloneFieldChecks:
     
     def test_apply_conditions_with_negated_field_check(self):
         """Test filtering with negated field check."""
-        from src.processor import NotExpr
+        from dataconv.processor import NotExpr
         
         data = [
             {"name": "Alice", "disabled": False},

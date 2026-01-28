@@ -12,7 +12,7 @@ import pytest
 import toml
 import yaml
 
-from src.api import convert, extract_path, filter, load, query, save
+from dataconv.api import convert, extract_path, filter, load, query, save
 
 
 class TestLoad:

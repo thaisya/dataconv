@@ -13,8 +13,8 @@ from datetime import date, datetime
 
 import pytest
 
-from src.io import FileFormat
-from src.validation import (
+from dataconv.io import FileFormat
+from dataconv.validation import (
     JSONValidator,
     TOMLValidator,
     ValidationError,

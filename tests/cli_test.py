@@ -1,4 +1,4 @@
-"""Unit tests for src/cli.py module.
+"""Unit tests for dataconv/cli.py module.
 
 Tests cover:
 - CLI commands (load, save, convert, show, status, validate, help, exit, clear)
@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.cli import InteractiveCLI
+from dataconv.cli import InteractiveCLI
 
 
 class TestCLICommands:
@@ -24,7 +24,7 @@ class TestCLICommands:
 
     def test_load_command_success(self, cli):
         """Test successful file loading."""
-        with patch("src.cli.smart_load") as mock_load:
+        with patch("dataconv.cli.smart_load") as mock_load:
             mock_load.return_value = {"name": "John", "age": 30}
 
             cli._cmd_load("files/data.json")
@@ -49,7 +49,7 @@ class TestCLICommands:
         """Test successful file saving."""
         cli.current_data = {"name": "John"}
 
-        with patch("src.cli.smart_save") as mock_save:
+        with patch("dataconv.cli.smart_save") as mock_save:
             cli._cmd_save("output.json")
 
             mock_save.assert_called_once()
@@ -71,10 +71,10 @@ class TestCLICommands:
         cli.current_data = {"name": "John", "age": 30}
         cli.current_file = Path("input.json")
 
-        with patch("src.cli.smart_save") as mock_save, patch(
-            "src.cli.validate"
+        with patch("dataconv.cli.smart_save") as mock_save, patch(
+            "dataconv.cli.validate"
         ) as mock_validate:
-            from src.validation import ValidationResult
+            from dataconv.validation import ValidationResult
 
             mock_validate.return_value = ValidationResult()
 
@@ -125,8 +125,8 @@ class TestCLICommands:
         cli.current_data = {"name": "John"}
         cli.current_format = "json"
 
-        with patch("src.cli.validate") as mock_validate:
-            from src.validation import ValidationResult
+        with patch("dataconv.cli.validate") as mock_validate:
+            from dataconv.validation import ValidationResult
 
             mock_validate.return_value = ValidationResult()
 
@@ -164,7 +164,7 @@ class TestCLICommands:
 
     def test_clear_command(self, cli):
         """Test clear command."""
-        with patch("src.cli.console.clear"):
+        with patch("dataconv.cli.console.clear"):
             cli._cmd_clear("")
 
     def test_count_records_list(self, cli):
@@ -223,7 +223,7 @@ class TestCLIIntegration:
 
     def test_load_then_show_workflow(self, cli):
         """Test loading a file then showing data."""
-        with patch("src.cli.smart_load") as mock_load, \
+        with patch("dataconv.cli.smart_load") as mock_load, \
             patch("pathlib.Path.exists", return_value=True):
 
             mock_load.return_value = [{"name": "John"}]
@@ -234,8 +234,8 @@ class TestCLIIntegration:
 
     def test_load_then_save_workflow(self, cli):
         """Test loading then saving to different format."""
-        with patch("src.cli.smart_load") as mock_load, \
-            patch("src.cli.smart_save") as mock_save, \
+        with patch("dataconv.cli.smart_load") as mock_load, \
+            patch("dataconv.cli.smart_save") as mock_save, \
             patch("pathlib.Path.exists", return_value=True):
 
             mock_load.return_value = {"name": "John"}

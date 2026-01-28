@@ -9,7 +9,7 @@ Tests cover:
 import pytest
 from lark import Lark
 
-from src.grammar import QUERY_GRAMMAR
+from dataconv.grammar import QUERY_GRAMMAR
 
 
 class TestQueryGrammar:

@@ -11,7 +11,7 @@ Tests cover:
 
 import pytest
 
-from src.parser import (
+from dataconv.parser import (
     AndExpr,
     Comparison,
     NotExpr,

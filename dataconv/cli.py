@@ -26,7 +26,7 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
-from src import __version__
+from dataconv import __version__
 from dataconv.io import DataConverterIOError, detect_format, smart_load, smart_save
 from dataconv.parser import ParseError, QueryParser
 from dataconv.processor import ProcessorError, apply_path, apply_conditions, process_data

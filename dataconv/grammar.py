@@ -38,7 +38,7 @@ path_content: (path_segment | nested_bracket | quoted_string)+
 
 nested_bracket: "[" path_content "]"
 
-quoted_string: ESCAPED_STRING
+quoted_string: ESCAPED_STRING | SINGLE_QUOTED_STRING
 
 path_segment: /[^\[\]"]+/
 
@@ -68,6 +68,9 @@ field_check: field
 OP: "==" | "!=" | ">" | "<" | ">=" | "<="
 
 value: ESCAPED_STRING
+     | SINGLE_QUOTED_STRING
+     | SIGNED_NUMBER
+
      | SIGNED_NUMBER
      | TRUE
      | FALSE
@@ -79,6 +82,7 @@ NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
 TRUE: "true"
 FALSE: "false"
 NULL: "null"
+SINGLE_QUOTED_STRING: /'([^'\\\\]|\\\\.)*'/
 
 %ignore WS
 """

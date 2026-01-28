@@ -16,7 +16,7 @@ import toml
 import xmltodict
 import yaml
 
-from src.io import (
+from dataconv.io import (
     DataConverterIOError,
     FileFormat,
     FileLoadError,
@@ -27,7 +27,7 @@ from src.io import (
     smart_save,
     parse_source_with_path,
 )
-from src.options import OptionsConfig
+from dataconv.options import OptionsConfig
 
 
 class TestDetectFormat:
