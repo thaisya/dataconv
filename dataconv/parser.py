@@ -392,9 +392,13 @@ class QueryParser:
         'input.json'
     """
 
+    _shared_parser: Lark | None = None
+
     def __init__(self) -> None:
         """Initialize the query parser with grammar and transformer."""
-        self._parser = Lark(QUERY_GRAMMAR, parser="lalr")
+        if QueryParser._shared_parser is None:
+            QueryParser._shared_parser = Lark(QUERY_GRAMMAR, parser="lalr")
+        self._parser = QueryParser._shared_parser
         self._transformer = QueryTransformer()
         logger.debug("QueryParser initialized")
 
