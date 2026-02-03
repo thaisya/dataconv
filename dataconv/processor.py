@@ -17,6 +17,7 @@ Example:
 
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from jsonpath_ng import parse
@@ -31,6 +32,13 @@ class ProcessorError(Exception):
     """Exception raised when data processing fails."""
 
     pass
+
+
+@lru_cache(maxsize=128)
+def _get_jsonpath_expr(path: str):
+    """Get or compile JSONPath expression with caching."""
+    return parse(path)
+
 
 def apply_path(data: dict[str, Any], path: str | None) -> Any:
     """Extract data using JSONPath expression.
@@ -58,7 +66,7 @@ def apply_path(data: dict[str, Any], path: str | None) -> Any:
 
     try:
         logger.debug(f"Applying JSONPath: {path}")
-        jsonpath_expr = parse(path)
+        jsonpath_expr = _get_jsonpath_expr(path)
         matches = jsonpath_expr.find(data)
 
         if not matches:
